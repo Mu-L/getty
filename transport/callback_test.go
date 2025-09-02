@@ -5,13 +5,18 @@ import (
 )
 
 func TestCallback(t *testing.T) {
-	var count, expected, remove, totalCount int
-	var cb = &callbacks{}
+	// 测试空列表
+	cb := &callbacks{}
+	if cb.Count() != 0 {
+		t.Errorf("空列表期望数量为 0，实际为 %d", cb.Count())
+	}
 	
+	// 测试添加回调函数
+	var count, expected, remove, totalCount int
 	totalCount = 10
 	remove = 5
 	
-	// 添加回调函数
+	// 添加多个回调函数
 	for i := 1; i < totalCount; i++ {
 		expected = expected + i
 		func(ii int) { 
@@ -45,55 +50,43 @@ func TestCallback(t *testing.T) {
 	if count != expectedCount {
 		t.Errorf("期望执行结果为 %d，实际为 %d", expectedCount, count)
 	}
-}
-
-func TestCallbackAddRemove(t *testing.T) {
-	cb := &callbacks{}
 	
-	// 测试空列表
-	if cb.Count() != 0 {
-		t.Errorf("空列表期望数量为 0，实际为 %d", cb.Count())
-	}
+	// 测试字符串类型的 handler 和 key
+	cb2 := &callbacks{}
 	
 	// 添加回调
-	cb.Add("handler1", "key1", func() {})
-	cb.Add("handler2", "key2", func() {})
-	cb.Add("handler3", "key3", func() {})
+	cb2.Add("handler1", "key1", func() {})
+	cb2.Add("handler2", "key2", func() {})
+	cb2.Add("handler3", "key3", func() {})
 	
-	if cb.Count() != 3 {
-		t.Errorf("期望回调数量为 3，实际为 %d", cb.Count())
+	if cb2.Count() != 3 {
+		t.Errorf("期望回调数量为 3，实际为 %d", cb2.Count())
 	}
 	
 	// 移除中间的回调
-	cb.Remove("handler2", "key2")
-	if cb.Count() != 2 {
-		t.Errorf("移除中间回调后期望数量为 2，实际为 %d", cb.Count())
+	cb2.Remove("handler2", "key2")
+	if cb2.Count() != 2 {
+		t.Errorf("移除中间回调后期望数量为 2，实际为 %d", cb2.Count())
 	}
 	
 	// 移除第一个回调
-	cb.Remove("handler1", "key1")
-	if cb.Count() != 1 {
-		t.Errorf("移除第一个回调后期望数量为 1，实际为 %d", cb.Count())
+	cb2.Remove("handler1", "key1")
+	if cb2.Count() != 1 {
+		t.Errorf("移除第一个回调后期望数量为 1，实际为 %d", cb2.Count())
 	}
 	
 	// 移除最后一个回调
-	cb.Remove("handler3", "key3")
-	if cb.Count() != 0 {
-		t.Errorf("移除最后一个回调后期望数量为 0，实际为 %d", cb.Count())
+	cb2.Remove("handler3", "key3")
+	if cb2.Count() != 0 {
+		t.Errorf("移除最后一个回调后期望数量为 0，实际为 %d", cb2.Count())
 	}
-}
-
-func TestCallbackRemoveNonExistent(t *testing.T) {
-	cb := &callbacks{}
 	
-	// 添加一个回调
-	cb.Add("handler1", "key1", func() {})
-	
-	// 尝试移除不存在的回调
-	cb.Remove("handler2", "key2")
+	// 测试移除不存在的回调
+	cb2.Add("handler1", "key1", func() {})
+	cb2.Remove("handler2", "key2") // 尝试移除不存在的回调
 	
 	// 应该仍然有1个回调
-	if cb.Count() != 1 {
-		t.Errorf("期望回调数量为 1，实际为 %d", cb.Count())
+	if cb2.Count() != 1 {
+		t.Errorf("期望回调数量为 1，实际为 %d", cb2.Count())
 	}
 }
