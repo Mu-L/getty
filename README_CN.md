@@ -18,7 +18,7 @@ Getty 是一个使用 Golang 开发的异步网络 I/O 库。它适用于 TCP、
 
 如果您使用 WebSocket，您无需担心心跳请求/响应，因为 Getty 在 session.go 的 (Session)handleLoop 方法内通过发送和接收 WebSocket ping/pong 帧来处理此任务。您只需在 codec.go 的 (Codec)OnCron 方法内使用 session.go 的 (Session)GetActive 方法检查 WebSocket 会话是否已超时。
 
-有关代码示例，请参阅 https://github.com/AlexStocks/getty-examples。
+有关代码示例，请参阅 https://github.com/AlexStocks/getty-examples
 
 ## 关于 Getty 中的网络传输
 
