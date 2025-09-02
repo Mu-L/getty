@@ -882,7 +882,6 @@ func (s *session) stop() {
 						log.Errorf("invokeCloseCallbacks panic: %v", r)
 					}
 				}()
-				// 执行关闭回调函数
 				s.invokeCloseCallbacks()
 			}()
 
