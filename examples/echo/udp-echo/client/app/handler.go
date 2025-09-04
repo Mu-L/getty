@@ -27,7 +27,7 @@ import (
 	log "github.com/AlexStocks/getty/util"
 )
 
-var errSessionNotExist = errors.New("session not exist!")
+var errSessionNotExist = errors.New("session not exist")
 
 ////////////////////////////////////////////
 // EchoMessageHandler

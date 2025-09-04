@@ -32,13 +32,18 @@ import (
 )
 
 import (
-	log "github.com/AlexStocks/getty/util"
 	gxbytes "github.com/dubbogo/gost/bytes"
-	"github.com/dubbogo/gost/net"
+	gxnet "github.com/dubbogo/gost/net"
 	gxsync "github.com/dubbogo/gost/sync"
 	gxtime "github.com/dubbogo/gost/time"
+
 	"github.com/gorilla/websocket"
+
 	perrors "github.com/pkg/errors"
+)
+
+import (
+	log "github.com/AlexStocks/getty/util"
 )
 
 const (
@@ -165,7 +170,7 @@ func (c *client) dialTCP() Session {
 			conn, err = net.DialTimeout("tcp", c.addr, connectTimeout)
 		}
 		if err == nil && gxnet.IsSameAddr(conn.RemoteAddr(), conn.LocalAddr()) {
-			conn.Close()
+			_ = conn.Close()
 			err = errSelfConnect
 		}
 		if err == nil {
@@ -199,7 +204,7 @@ func (c *client) dialUDP() Session {
 		}
 		conn, err = net.DialUDP("udp", localAddr, peerAddr)
 		if err == nil && gxnet.IsSameAddr(conn.RemoteAddr(), conn.LocalAddr()) {
-			conn.Close()
+			_ = conn.Close()
 			err = errSelfConnect
 		}
 		if err != nil {
@@ -213,7 +218,7 @@ func (c *client) dialUDP() Session {
 			log.Warnf("failed to set write deadline: %+v", err)
 		}
 		if length, err = conn.Write(connectPingPackage[:]); err != nil {
-			conn.Close()
+			_ = conn.Close()
 			log.Warnf("conn.Write(%s) = {length:%d, err:%+v}", string(connectPingPackage), length, perrors.WithStack(err))
 			<-gxtime.After(connectInterval)
 			continue
@@ -227,7 +232,7 @@ func (c *client) dialUDP() Session {
 		}
 		if err != nil {
 			log.Infof("conn{%#v}.Read() = {length:%d, err:%+v}", conn, length, perrors.WithStack(err))
-			conn.Close()
+			_ = conn.Close()
 			<-gxtime.After(connectInterval)
 			continue
 		}
@@ -251,7 +256,7 @@ func (c *client) dialWS() Session {
 		conn, _, err = dialer.Dial(c.addr, nil)
 		log.Infof("websocket.dialer.Dial(addr:%s) = error:%+v", c.addr, perrors.WithStack(err))
 		if err == nil && gxnet.IsSameAddr(conn.RemoteAddr(), conn.LocalAddr()) {
-			conn.Close()
+			_ = conn.Close()
 			err = errSelfConnect
 		}
 		if err == nil {
@@ -328,7 +333,7 @@ func (c *client) dialWSS() Session {
 		}
 		conn, _, err = dialer.Dial(c.addr, nil)
 		if err == nil && gxnet.IsSameAddr(conn.RemoteAddr(), conn.LocalAddr()) {
-			conn.Close()
+			_ = conn.Close()
 			err = errSelfConnect
 		}
 		if err == nil {
@@ -408,7 +413,9 @@ func (c *client) connect() {
 		}
 		// don't distinguish between tcp connection and websocket connection. Because
 		// gorilla/websocket/conn.go:(Conn)Close also invoke net.Conn.Close()
-		ss.Conn().Close()
+		if cerr := ss.Conn().Close(); cerr != nil {
+			log.Warnf("failed to close conn: %+v", cerr)
+		}
 	}
 }
 
@@ -464,7 +471,7 @@ func (c *client) stop() {
 	case <-c.done:
 		return
 	default:
-		c.Once.Do(func() {
+		c.Do(func() {
 			close(c.done)
 			c.Lock()
 			for s := range c.ssMap {

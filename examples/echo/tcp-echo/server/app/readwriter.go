@@ -25,9 +25,6 @@ import (
 
 import (
 	"github.com/AlexStocks/getty/transport"
-)
-
-import (
 	log "github.com/AlexStocks/getty/util"
 )
 
@@ -72,7 +69,7 @@ func (h *EchoPackageHandler) Write(ss getty.Session, pkg any) ([]byte, error) {
 	startTime = time.Now()
 	if echoPkg, ok = pkg.(*EchoPackage); !ok {
 		log.Error("illegal pkg:%+v\n", pkg)
-		return nil, errors.New("invalid echo package!")
+		return nil, errors.New("invalid echo package")
 	}
 
 	buf, err = echoPkg.Marshal()

@@ -18,15 +18,12 @@
 package main
 
 import (
-	// "flag"
 	"fmt"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
-
-	// "strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -36,11 +33,12 @@ import (
 	gxlog "github.com/AlexStocks/goext/log"
 	gxnet "github.com/AlexStocks/goext/net"
 	gxtime "github.com/AlexStocks/goext/time"
-	"github.com/dubbogo/gost/sync"
+
+	gxsync "github.com/dubbogo/gost/sync"
 )
 
 import (
-	"github.com/AlexStocks/getty/transport"
+	getty "github.com/AlexStocks/getty/transport"
 	log "github.com/AlexStocks/getty/util"
 )
 
@@ -77,9 +75,7 @@ func main() {
 }
 
 func initProfiling() {
-	var addr string
-
-	addr = gxnet.HostAddress(conf.LocalHost, conf.ProfilePort)
+	addr := gxnet.HostAddress(conf.LocalHost, conf.ProfilePort)
 	log.Info("App Profiling startup on address{%v}", addr+pprofPath)
 	go func() {
 		log.Info(http.ListenAndServe(addr, nil))
@@ -100,13 +96,23 @@ func newSession(session getty.Session) error {
 		panic(fmt.Sprintf("%s, session.conn{%#v} is not tcp connection\n", session.Stat(), session.Conn()))
 	}
 
-	tcpConn.SetNoDelay(conf.GettySessionParam.TcpNoDelay)
-	tcpConn.SetKeepAlive(conf.GettySessionParam.TcpKeepAlive)
-	if conf.GettySessionParam.TcpKeepAlive {
-		tcpConn.SetKeepAlivePeriod(conf.GettySessionParam.keepAlivePeriod)
+	if err := tcpConn.SetNoDelay(conf.GettySessionParam.TcpNoDelay); err != nil {
+		log.Warnf("SetNoDelay error: %+v", err)
 	}
-	tcpConn.SetReadBuffer(conf.GettySessionParam.TcpRBufSize)
-	tcpConn.SetWriteBuffer(conf.GettySessionParam.TcpWBufSize)
+	if err := tcpConn.SetKeepAlive(conf.GettySessionParam.TcpKeepAlive); err != nil {
+		log.Warnf("SetKeepAlive error: %+v", err)
+	}
+	if conf.GettySessionParam.TcpKeepAlive {
+		if err := tcpConn.SetKeepAlivePeriod(conf.GettySessionParam.keepAlivePeriod); err != nil {
+			log.Warnf("SetKeepAlivePeriod error: %+v", err)
+		}
+	}
+	if err := tcpConn.SetReadBuffer(conf.GettySessionParam.TcpRBufSize); err != nil {
+		log.Warnf("SetReadBuffer error: %+v", err)
+	}
+	if err := tcpConn.SetWriteBuffer(conf.GettySessionParam.TcpWBufSize); err != nil {
+		log.Warnf("SetWriteBuffer error: %+v", err)
+	}
 
 	session.SetName(conf.GettySessionParam.SessionName)
 	session.SetMaxMsgLen(conf.GettySessionParam.MaxMsgLen)
@@ -144,7 +150,7 @@ func initSignal() {
 	// signal.Notify的ch信道是阻塞的(signal.Notify不会阻塞发送信号), 需要设置缓冲
 	signals := make(chan os.Signal, 1)
 	// It is not possible to block SIGKILL or syscall.SIGSTOP
-	signal.Notify(signals, os.Interrupt, os.Kill, syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT)
+	signal.Notify(signals, os.Interrupt, syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT)
 	for {
 		sig := <-signals
 		log.Info("get signal %s", sig.String())
@@ -170,7 +176,7 @@ func initSignal() {
 func echo() {
 	var pkg EchoPackage
 	pkg.H.Magic = echoPkgMagic
-	pkg.H.LogID = (uint32)(src.Int63())
+	pkg.H.LogID = (uint32)(r.Int63())
 	pkg.H.Sequence = atomic.AddUint32(&reqID, 1)
 	// pkg.H.ServiceID = 0
 	pkg.H.Command = echoCmd
@@ -188,10 +194,7 @@ func echo() {
 }
 
 func test() {
-	for {
-		if client.isAvailable() {
-			break
-		}
+	for !client.isAvailable() {
 		time.Sleep(1e6)
 	}
 
