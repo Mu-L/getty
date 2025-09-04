@@ -25,9 +25,6 @@ import (
 
 import (
 	"github.com/AlexStocks/getty/transport"
-)
-
-import (
 	log "github.com/AlexStocks/getty/util"
 )
 
@@ -36,7 +33,7 @@ const (
 )
 
 var (
-	errTooManySessions = errors.New("Too many echo sessions!")
+	errTooManySessions = errors.New("too many echo sessions")
 	hbHandler          = &HeartbeatHandler{}
 	msgHandler         = &MessageHandler{}
 	echoMsgHandler     = newEchoMessageHandler()

@@ -29,7 +29,7 @@ import (
 )
 
 var (
-	errTooManySessions = errors.New("Too many echo sessions!")
+	errTooManySessions = errors.New("too many echo sessions")
 	msgHandler         = &MessageHandler{}
 	echoMsgHandler     = newEchoMessageHandler()
 )

@@ -29,8 +29,11 @@ import (
 
 import (
 	"github.com/golang/snappy"
+
 	"github.com/gorilla/websocket"
+
 	perrors "github.com/pkg/errors"
+
 	uatomic "go.uber.org/atomic"
 )
 
@@ -80,8 +83,6 @@ type Connection interface {
 type gettyConn struct {
 	id            uint32
 	compress      CompressType
-	padding1      uint8
-	padding2      uint16
 	readBytes     uatomic.Uint32   // read bytes
 	writeBytes    uatomic.Uint32   // write bytes
 	readPkgNum    uatomic.Uint32   // send pkg number
@@ -124,11 +125,7 @@ func (c *gettyConn) GetActive() time.Time {
 	return launchTime.Add(time.Duration(c.active.Load()))
 }
 
-func (c *gettyConn) send(any) (int, error) {
-	return 0, nil
-}
-
-func (c *gettyConn) close(int) {}
+// removed unused methods send/close
 
 func (c gettyConn) ReadTimeout() time.Duration {
 	return c.rTimeout.Load()
@@ -482,7 +479,7 @@ func (u *gettyUDPConn) Send(udpCtx any) (int, error) {
 // close udp connection
 func (u *gettyUDPConn) CloseConn(_ int) {
 	if u.conn != nil {
-		u.conn.Close()
+		_ = u.conn.Close()
 		u.conn = nil
 	}
 }
@@ -535,7 +532,9 @@ func (w *gettyWSConn) SetCompressType(c CompressType) {
 	switch c {
 	case CompressNone, CompressZip, CompressBestSpeed, CompressBestCompression, CompressHuffman:
 		w.conn.EnableWriteCompression(true)
-		w.conn.SetCompressionLevel(int(c))
+		if err := w.conn.SetCompressionLevel(int(c)); err != nil {
+			log.Warnf("failed to set compression level: %+v", err)
+		}
 
 	default:
 		panic(fmt.Sprintf("illegal comparess type %d", c))
@@ -613,7 +612,9 @@ func (w *gettyWSConn) Send(pkg any) (int, error) {
 		return 0, perrors.Errorf("illegal @pkg{%#v} type", pkg)
 	}
 
-	w.updateWriteDeadline()
+	if err := w.updateWriteDeadline(); err != nil {
+		log.Warnf("failed to update write deadline: %+v", err)
+	}
 	if err = w.threadSafeWriteMessage(websocket.BinaryMessage, p); err == nil {
 		w.writeBytes.Add((uint32)(len(p)))
 		w.writePkgNum.Add(1)
@@ -622,26 +623,36 @@ func (w *gettyWSConn) Send(pkg any) (int, error) {
 }
 
 func (w *gettyWSConn) writePing() error {
-	w.updateWriteDeadline()
+	if err := w.updateWriteDeadline(); err != nil {
+		log.Warnf("failed to update write deadline: %+v", err)
+	}
 	return perrors.WithStack(w.threadSafeWriteMessage(websocket.PingMessage, []byte{}))
 }
 
 func (w *gettyWSConn) writePong(message []byte) error {
-	w.updateWriteDeadline()
+	if err := w.updateWriteDeadline(); err != nil {
+		log.Warnf("failed to update write deadline: %+v", err)
+	}
 	return perrors.WithStack(w.threadSafeWriteMessage(websocket.PongMessage, message))
 }
 
 // close websocket connection
 func (w *gettyWSConn) CloseConn(waitSec int) {
-	w.updateWriteDeadline()
-	w.threadSafeWriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "bye-bye!!!"))
+	if err := w.updateWriteDeadline(); err != nil {
+		log.Warnf("failed to update write deadline: %+v", err)
+	}
+	if err := w.threadSafeWriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "bye-bye!!!")); err != nil {
+		log.Warnf("failed to send close message: %+v", err)
+	}
 	conn := w.conn.UnderlyingConn()
 	if tcpConn, ok := conn.(*net.TCPConn); ok {
-		tcpConn.SetLinger(waitSec)
+		_ = tcpConn.SetLinger(waitSec)
 	} else if wsConn, ok := conn.(*tls.Conn); ok {
-		wsConn.CloseWrite()
+		_ = wsConn.CloseWrite()
 	}
-	w.conn.Close()
+	if err := w.conn.Close(); err != nil {
+		log.Warnf("failed to close websocket conn: %+v", err)
+	}
 }
 
 // uses a mutex(writeLock) to ensure that only one thread can send a message at a time, preventing race conditions.

@@ -30,10 +30,6 @@ import (
 )
 
 import (
-	log "github.com/AlexStocks/getty/util"
-)
-
-import (
 	gxbytes "github.com/dubbogo/gost/bytes"
 	gxcontext "github.com/dubbogo/gost/context"
 	gxtime "github.com/dubbogo/gost/time"
@@ -43,6 +39,10 @@ import (
 	perrors "github.com/pkg/errors"
 
 	uatomic "go.uber.org/atomic"
+)
+
+import (
+	log "github.com/AlexStocks/getty/util"
 )
 
 const (
@@ -410,7 +410,7 @@ func (s *session) WritePkg(pkg any, timeout time.Duration) (pkgBytesLenth int, s
 	s.packetLock.RLock()
 	defer s.packetLock.RUnlock()
 	if 0 < timeout {
-		s.Connection.SetWriteTimeout(timeout)
+		s.gettyConn().SetWriteTimeout(timeout)
 	}
 	successCount, err = s.Connection.Send(pkg)
 	if err != nil {
@@ -693,12 +693,11 @@ func (s *session) handleTCPPackage() error {
 			}
 			break
 		}
-		if 0 != bufLen {
-			pktBuf.WriteNextEnd(bufLen)
-			for {
-				if pktBuf.Len() <= 0 {
-					break
-				}
+		if bufLen != 0 {
+			if _, werr := pktBuf.WriteNextEnd(bufLen); werr != nil {
+				log.Warnf("%s, pktBuf.WriteNextEnd(%d) error:%+v", s.sessionToken(), bufLen, perrors.WithStack(werr))
+			}
+			for pktBuf.Len() > 0 {
 				pkg, pkgLen, err = s.reader.Read(s, pktBuf.Bytes())
 				// for case 3/case 4
 				if err == nil && s.maxMsgLen > 0 && pkgLen > int(s.maxMsgLen) {
@@ -754,10 +753,7 @@ func (s *session) handleUDPPackage() error {
 	bufp = gxbytes.AcquireBytes(maxBufLen)
 	defer gxbytes.ReleaseBytes(bufp)
 	buf = *bufp
-	for {
-		if s.IsClosed() {
-			break
-		}
+	for !s.IsClosed() {
 
 		bufLen, addr, err = conn.recv(buf)
 		log.Debugf("conn.read() = bufLen:%d, addr:%#v, err:%+v", bufLen, addr, perrors.WithStack(err))
@@ -816,10 +812,7 @@ func (s *session) handleWSPackage() error {
 	)
 
 	conn = s.Connection.(*gettyWSConn)
-	for {
-		if s.IsClosed() {
-			break
-		}
+	for !s.IsClosed() {
 		pkg, err = conn.recv()
 		if netError, ok = perrors.Cause(err).(net.Error); ok && netError.Timeout() {
 			continue
