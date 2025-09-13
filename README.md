@@ -46,6 +46,8 @@ session.RemoveCloseCallback("cleanup", "resources")
 // Callbacks are automatically executed when the session closes
 ```
 
+**Note**: Callbacks should be fast/non-blocking; move heavy work to separate goroutines to avoid delaying shutdown.
+
 ### Callback Management
 
 - **AddCloseCallback**: Register a callback to be executed when the session closes

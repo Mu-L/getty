@@ -46,6 +46,8 @@ session.RemoveCloseCallback("cleanup", "resources")
 // 当会话关闭时，回调会自动执行
 ```
 
+**注意**：关闭回调应尽量快速、避免阻塞或长耗时操作，否则可能延长会话关闭耗时；重活移交到独立 goroutine。
+
 ### 回调管理
 
 - **AddCloseCallback**：注册一个在会话关闭时执行的回调
