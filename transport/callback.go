@@ -1,96 +1,113 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package getty
 
-// callbackCommon 表示回调链表中的一个节点
-// 每个节点包含处理器标识、键值、回调函数和指向下一个节点的指针
+// callbackCommon represents a node in the callback linked list
+// Each node contains handler identifier, key, callback function and pointer to next node
 type callbackCommon struct {
-	handler interface{}        // 处理器标识，用于标识回调的来源或类型
-	key     interface{}        // 回调的唯一标识键，与 handler 组合使用
-	call    func()             // 实际要执行的回调函数
-	next    *callbackCommon    // 指向下一个节点的指针，形成链表结构
+	handler interface{}        // Handler identifier, used to identify the source or type of callback
+	key     interface{}        // Unique identifier key for callback, used in combination with handler
+	call    func()             // Actual callback function to be executed
+	next    *callbackCommon    // Pointer to next node, forming linked list structure
 }
 
-// callbacks 是一个单向链表结构，用于管理多个回调函数
-// 支持动态添加、移除和执行回调
+// callbacks is a singly linked list structure for managing multiple callback functions
+// Supports dynamic addition, removal and execution of callbacks
 type callbacks struct {
-	first *callbackCommon    // 指向链表第一个节点的指针
-	last  *callbackCommon    // 指向链表最后一个节点的指针，用于快速添加新节点
+	first *callbackCommon    // Pointer to the first node of the linked list
+	last  *callbackCommon    // Pointer to the last node of the linked list, used for quick addition of new nodes
 }
 
-// Add 向回调链表中添加一个新的回调函数
-// 参数说明:
-//   - handler: 处理器标识，可以是任意类型
-//   - key: 回调的唯一标识键，与 handler 组合使用
-//   - callback: 要执行的回调函数，如果为 nil 则忽略
+// Add adds a new callback function to the callback linked list
+// Parameters:
+//   - handler: Handler identifier, can be any type
+//   - key: Unique identifier key for callback, used in combination with handler
+//   - callback: Callback function to be executed, ignored if nil
 func (t *callbacks) Add(handler, key interface{}, callback func()) {
-	// 防止添加空回调函数
+	// Prevent adding empty callback function
 	if callback == nil {
 		return
 	}
 	
-	// 创建新的回调节点
+	// Create new callback node
 	newItem := &callbackCommon{handler, key, callback, nil}
 	
 	if t.first == nil {
-		// 如果链表为空，新节点成为第一个节点
+		// If linked list is empty, new node becomes the first node
 		t.first = newItem
 	} else {
-		// 否则将新节点添加到链表末尾
+		// Otherwise add new node to the end of linked list
 		t.last.next = newItem
 	}
-	// 更新最后一个节点的指针
+	// Update pointer to last node
 	t.last = newItem
 }
 
-// Remove 从回调链表中移除指定的回调函数
-// 参数说明:
-//   - handler: 要移除的回调的处理器标识
-//   - key: 要移除的回调的唯一标识键
-// 注意: 如果找不到匹配的回调，此方法不会产生任何效果
+// Remove removes the specified callback function from the callback linked list
+// Parameters:
+//   - handler: Handler identifier of the callback to be removed
+//   - key: Unique identifier key of the callback to be removed
+// Note: If no matching callback is found, this method has no effect
 func (t *callbacks) Remove(handler, key interface{}) {
 	var prev *callbackCommon
 	
-	// 遍历链表查找要移除的节点
+	// Traverse linked list to find the node to be removed
 	for callback := t.first; callback != nil; prev, callback = callback, callback.next {
-		// 找到匹配的节点
+		// Found matching node
 		if callback.handler == handler && callback.key == key {
 			if t.first == callback {
-				// 如果是第一个节点，更新 first 指针
+				// If it's the first node, update first pointer
 				t.first = callback.next
 			} else if prev != nil {
-				// 如果是中间节点，更新前一个节点的 next 指针
+				// If it's a middle node, update the next pointer of the previous node
 				prev.next = callback.next
 			}
 			
 			if t.last == callback {
-				// 如果是最后一个节点，更新 last 指针
+				// If it's the last node, update last pointer
 				t.last = prev
 			}
 			
-			// 找到并移除后立即返回
+			// Return immediately after finding and removing
 			return
 		}
 	}
 }
 
-// Invoke 执行链表中所有注册的回调函数
-// 按照添加的顺序依次执行每个回调
-// 注意: 如果某个回调函数为 nil，会被跳过
+// Invoke executes all registered callback functions in the linked list
+// Executes each callback in the order they were added
+// Note: If a callback function is nil, it will be skipped
 func (t *callbacks) Invoke() {
-	// 从头节点开始遍历整个链表
+	// Traverse the entire linked list starting from the head node
 	for callback := t.first; callback != nil; callback = callback.next {
-		// 确保回调函数不为 nil 再执行
+		// Ensure callback function is not nil before executing
 		if callback.call != nil {
 			callback.call()
 		}
 	}
 }
 
-// Count 返回链表中回调函数的数量
-// 返回值: 当前注册的回调函数总数
+// Count returns the number of callback functions in the linked list
+// Return value: Total number of currently registered callback functions
 func (t *callbacks) Count() int {
 	var count int
 	
-	// 遍历链表计数
+	// Traverse linked list to count
 	for callback := t.first; callback != nil; callback = callback.next {
 		count++
 	}
