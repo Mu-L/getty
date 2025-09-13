@@ -18,23 +18,23 @@
 package main
 
 import (
-	// "flag"
 	"fmt"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
-
-	// "strings"
 	"syscall"
 	"time"
 )
 
 import (
-	"github.com/AlexStocks/getty/transport"
-	log "github.com/AlexStocks/getty/util"
 	gxnet "github.com/AlexStocks/goext/net"
+)
+
+import (
+	getty "github.com/AlexStocks/getty/transport"
+	log "github.com/AlexStocks/getty/util"
 )
 
 const (
@@ -66,10 +66,8 @@ func main() {
 }
 
 func initProfiling() {
-	var addr string
-
 	// addr = *host + ":" + "10000"
-	addr = gxnet.HostAddress(conf.Host, conf.ProfilePort)
+	addr := gxnet.HostAddress(conf.Host, conf.ProfilePort)
 	log.Info("App Profiling startup on address{%v}", addr+pprofPath)
 	go func() {
 		log.Info(http.ListenAndServe(addr, nil))
@@ -91,8 +89,12 @@ func newSession(session getty.Session) error {
 		panic(fmt.Sprintf("%s, session.conn{%#v} is not udp connection\n", session.Stat(), session.Conn()))
 	}
 
-	udpConn.SetReadBuffer(conf.GettySessionParam.UdpRBufSize)
-	udpConn.SetWriteBuffer(conf.GettySessionParam.UdpWBufSize)
+	if err := udpConn.SetReadBuffer(conf.GettySessionParam.UdpRBufSize); err != nil {
+		log.Warnf("SetReadBuffer error: %+v", err)
+	}
+	if err := udpConn.SetWriteBuffer(conf.GettySessionParam.UdpWBufSize); err != nil {
+		log.Warnf("SetWriteBuffer error: %+v", err)
+	}
 
 	session.SetName(conf.GettySessionParam.SessionName)
 	session.SetMaxMsgLen(conf.GettySessionParam.MaxMsgLen)
@@ -149,7 +151,7 @@ func initSignal() {
 	// signal.Notify的ch信道是阻塞的(signal.Notify不会阻塞发送信号), 需要设置缓冲
 	signals := make(chan os.Signal, 1)
 	// It is not possible to block SIGKILL or syscall.SIGSTOP
-	signal.Notify(signals, os.Interrupt, os.Kill, syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT)
+	signal.Notify(signals, os.Interrupt, syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT)
 	for {
 		sig := <-signals
 		log.Info("get signal %s", sig.String())

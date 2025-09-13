@@ -30,11 +30,11 @@ import (
 
 var (
 	reqID uint32
-	src   = rand.NewSource(time.Now().UnixNano())
+	r     *rand.Rand
 )
 
 func init() {
-	rand.Seed(time.Now().UnixNano())
+	r = rand.New(rand.NewSource(time.Now().UnixNano()))
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -48,11 +48,7 @@ type EchoClient struct {
 }
 
 func (c *EchoClient) isAvailable() bool {
-	if c.selectSession() == nil {
-		return false
-	}
-
-	return true
+	return c.selectSession() != nil
 }
 
 func (c *EchoClient) close() {
@@ -80,7 +76,7 @@ func (c *EchoClient) selectSession() getty.Session {
 		return nil
 	}
 
-	return c.sessions[rand.Int31n(int32(count))].session
+	return c.sessions[r.Int31n(int32(count))].session
 }
 
 func (c *EchoClient) addSession(session getty.Session) {

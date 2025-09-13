@@ -25,11 +25,11 @@ import (
 )
 
 import (
-	log "github.com/AlexStocks/getty/util"
+	perrors "github.com/pkg/errors"
 )
 
 import (
-	perrors "github.com/pkg/errors"
+	log "github.com/AlexStocks/getty/util"
 )
 
 // TlsConfigBuilder  tls config builder interface

@@ -30,6 +30,7 @@ import (
 
 import (
 	"github.com/gorilla/websocket"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -48,10 +49,6 @@ type MessageHandler struct {
 	array []Session
 }
 
-func newMessageHandler() *MessageHandler {
-	return &MessageHandler{}
-}
-
 func (h *MessageHandler) SessionNumber() int {
 	h.lock.Lock()
 	connNum := len(h.array)
@@ -67,10 +64,10 @@ func (h *MessageHandler) OnOpen(session Session) error {
 
 	return nil
 }
-func (h *MessageHandler) OnError(session Session, err error)         {}
-func (h *MessageHandler) OnClose(session Session)                    {}
+func (h *MessageHandler) OnError(session Session, err error) {}
+func (h *MessageHandler) OnClose(session Session)            {}
 func (h *MessageHandler) OnMessage(session Session, pkg any) {}
-func (h *MessageHandler) OnCron(session Session)                     {}
+func (h *MessageHandler) OnCron(session Session)             {}
 
 type Package struct{}
 
@@ -101,7 +98,7 @@ func TestTCPClient(t *testing.T) {
 			return nil, err
 		}
 
-		go http.Serve(listener, nil)
+		go func() { _ = http.Serve(listener, nil) }()
 		return listener, nil
 	}
 
@@ -220,7 +217,7 @@ func TestUDPClient(t *testing.T) {
 		assert.Nil(t, err)
 		assert.NotNil(t, conn)
 	}()
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	addr := conn.LocalAddr()
 	t.Logf("server addr: %v", addr)
@@ -375,7 +372,7 @@ func TestNewWSClient(t *testing.T) {
 			close(done)
 		}()
 		message := websocket.FormatCloseMessage(code, "")
-		conn.conn.WriteControl(websocket.CloseMessage, message, time.Now().Add(1e9))
+		_ = conn.conn.WriteControl(websocket.CloseMessage, message, time.Now().Add(1e9))
 		return nil
 	})
 	serverSession := serverMsgHandler.array[0]
@@ -455,7 +452,7 @@ func DownloadFile(filepath string, content []byte) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 
 	// Write the body to file
 	_, err = out.Write(content)
@@ -469,20 +466,20 @@ func TestNewWSSClient(t *testing.T) {
 		serverMsgHandler MessageHandler
 	)
 
-	os.Remove(WssServerCRTFile)
+	_ = os.Remove(WssServerCRTFile)
 	err = DownloadFile(WssServerCRTFile, WssServerCRT)
 	assert.Nil(t, err)
-	defer os.Remove(WssServerCRTFile)
+	defer func() { _ = os.Remove(WssServerCRTFile) }()
 
-	os.Remove(WssServerKEYFile)
+	_ = os.Remove(WssServerKEYFile)
 	err = DownloadFile(WssServerKEYFile, WssServerKEY)
 	assert.Nil(t, err)
-	defer os.Remove(WssServerKEYFile)
+	defer func() { _ = os.Remove(WssServerKEYFile) }()
 
-	os.Remove(WssClientCRTFile)
+	_ = os.Remove(WssClientCRTFile)
 	err = DownloadFile(WssClientCRTFile, WssClientCRT)
 	assert.Nil(t, err)
-	defer os.Remove(WssClientCRTFile)
+	defer func() { _ = os.Remove(WssClientCRTFile) }()
 
 	addr := "127.0.0.1:63450"
 	path := "/hello"

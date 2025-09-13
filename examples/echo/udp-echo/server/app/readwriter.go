@@ -77,7 +77,7 @@ func (h *EchoPackageHandler) Write(ss getty.Session, udpCtx any) ([]byte, error)
 	startTime = time.Now()
 	if echoPkg, ok = ctx.Pkg.(*EchoPackage); !ok {
 		log.Error("illegal pkg:%+v, addr:%s\n", ctx.Pkg, ctx.PeerAddr)
-		return nil, errors.New("invalid echo package!")
+		return nil, errors.New("invalid echo package")
 	}
 
 	buf, err = echoPkg.Marshal()
