@@ -54,6 +54,36 @@ session.RemoveCloseCallback("cleanup", "resources")
 - **RemoveCloseCallback**：移除之前注册的回调
 - **线程安全**：所有操作都是线程安全的，可以并发调用
 
+### 类型要求
+
+`handler` 和 `key` 参数必须是**可比较的类型**，支持 `==` 操作符：
+
+**✅ 支持的类型：**
+- **基本类型**：`string`、`int`、`int8`、`int16`、`int32`、`int64`、`uint`、`uint8`、`uint16`、`uint32`、`uint64`、`uintptr`、`float32`、`float64`、`bool`、`complex64`、`complex128`
+- **指针类型**：指向任何类型的指针（如 `*int`、`*string`、`*MyStruct`）
+- **接口类型**：接口类型（按类型和值比较）
+- **通道类型**：通道类型（按通道标识比较）
+- **数组类型**：可比较元素的数组（如 `[3]int`、`[2]string`）
+- **结构体类型**：所有字段都是可比较类型的结构体
+
+**❌ 不支持的类型（会导致编译错误）：**
+- `map` 类型（如 `map[string]int`）
+- `slice` 类型（如 `[]int`、`[]string`）
+- `func` 类型（如 `func()`、`func(int) string`）
+- 包含不可比较字段的结构体（maps、slices、functions）
+
+**示例：**
+```go
+// ✅ 有效用法
+session.AddCloseCallback("user", "cleanup", callback)
+session.AddCloseCallback(123, "cleanup", callback)
+session.AddCloseCallback(true, false, callback)
+
+// ❌ 无效用法（编译错误）
+session.AddCloseCallback(map[string]int{"a": 1}, "key", callback)
+session.AddCloseCallback([]int{1, 2, 3}, "key", callback)
+```
+
 ## 关于 Getty 中的网络传输
 
 在网络通信中，Getty 的数据传输接口并不保证数据一定会成功发送，它缺乏内部的重试机制。相反，Getty 将数据传输的结果委托给底层操作系统机制处理。在这种机制下，如果数据成功传输，将被视为成功；如果传输失败，则被视为失败。这些结果随后会传递给上层调用者。

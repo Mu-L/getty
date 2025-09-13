@@ -54,6 +54,36 @@ session.RemoveCloseCallback("cleanup", "resources")
 - **RemoveCloseCallback**: Remove a previously registered callback
 - **Thread Safety**: All operations are thread-safe and can be called concurrently
 
+### Type Requirements
+
+The `handler` and `key` parameters must be **comparable types** that support the `==` operator:
+
+**✅ Supported types:**
+- **Basic types**: `string`, `int`, `int8`, `int16`, `int32`, `int64`, `uint`, `uint8`, `uint16`, `uint32`, `uint64`, `uintptr`, `float32`, `float64`, `bool`, `complex64`, `complex128`
+- **Pointer types**: Pointers to any type (e.g., `*int`, `*string`, `*MyStruct`)
+- **Interface types**: Interface types (compared by type and value)
+- **Channel types**: Channel types (compared by channel identity)
+- **Array types**: Arrays of comparable elements (e.g., `[3]int`, `[2]string`)
+- **Struct types**: Structs where all fields are comparable types
+
+**❌ Not supported (will cause compile errors):**
+- `map` types (e.g., `map[string]int`)
+- `slice` types (e.g., `[]int`, `[]string`)
+- `func` types (e.g., `func()`, `func(int) string`)
+- Structs containing non-comparable fields (maps, slices, functions)
+
+**Examples:**
+```go
+// ✅ Valid usage
+session.AddCloseCallback("user", "cleanup", callback)
+session.AddCloseCallback(123, "cleanup", callback)
+session.AddCloseCallback(true, false, callback)
+
+// ❌ Invalid usage (compile error)
+session.AddCloseCallback(map[string]int{"a": 1}, "key", callback)
+session.AddCloseCallback([]int{1, 2, 3}, "key", callback)
+```
+
 ## About network transmission in getty
 
 In network communication, the data transmission interface of getty does not guarantee that data will be sent successfully; it lacks an internal retry mechanism. Instead, getty delegates the outcome of data transmission to the underlying operating system mechanism. Under this mechanism, if data is successfully transmitted, it is considered a success; if transmission fails, it is regarded as a failure. These outcomes are then communicated back to the upper-layer caller.
