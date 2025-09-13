@@ -119,10 +119,8 @@ func TestCallback(t *testing.T) {
 
 func TestCallbackInvokePanicPropagation(t *testing.T) {
 	cb := &callbacks{}
-	var ran bool
 	cb.Add("h", "k1", func() { panic("boom") })
-	cb.Add("h", "k2", func() { ran = true })
-	
+
 	// Test that panic is propagated (not swallowed by Invoke)
 	defer func() {
 		if r := recover(); r != nil {
@@ -133,7 +131,7 @@ func TestCallbackInvokePanicPropagation(t *testing.T) {
 			t.Errorf("Expected panic to be propagated, but it was swallowed")
 		}
 	}()
-	
+
 	// This should panic and be caught by the defer above
 	cb.Invoke()
 }

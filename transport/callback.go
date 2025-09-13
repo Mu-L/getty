@@ -20,8 +20,8 @@ package getty
 // callbackCommon represents a node in the callback linked list
 // Each node contains handler identifier, key, callback function and pointer to next node
 type callbackCommon struct {
-	handler any     // Handler identifier, used to identify the source or type of callback
-	key     any     // Unique identifier key for callback, used in combination with handler
+	handler any             // Handler identifier, used to identify the source or type of callback
+	key     any             // Unique identifier key for callback, used in combination with handler
 	call    func()          // Actual callback function to be executed
 	next    *callbackCommon // Pointer to next node, forming linked list structure
 }
@@ -38,6 +38,7 @@ type callbacks struct {
 //   - handler: Handler identifier, can be any type
 //   - key: Unique identifier key for callback, used in combination with handler
 //   - callback: Callback function to be executed, ignored if nil
+//
 // Note: If a callback with the same handler and key already exists, it will be replaced
 func (t *callbacks) Add(handler, key any, callback func()) {
 	// Prevent adding empty callback function
