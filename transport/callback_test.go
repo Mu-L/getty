@@ -117,14 +117,23 @@ func TestCallback(t *testing.T) {
 	}
 }
 
-func TestCallbackInvokePanicSafe(t *testing.T) {
+func TestCallbackInvokePanicPropagation(t *testing.T) {
 	cb := &callbacks{}
 	var ran bool
 	cb.Add("h", "k1", func() { panic("boom") })
 	cb.Add("h", "k2", func() { ran = true })
-	// Expect: Invoke swallows panics and continues executing remaining callbacks.
+	
+	// Test that panic is propagated (not swallowed by Invoke)
+	defer func() {
+		if r := recover(); r != nil {
+			if r != "boom" {
+				t.Errorf("Expected panic 'boom', got %v", r)
+			}
+		} else {
+			t.Errorf("Expected panic to be propagated, but it was swallowed")
+		}
+	}()
+	
+	// This should panic and be caught by the defer above
 	cb.Invoke()
-	if !ran {
-		t.Errorf("Expected subsequent callbacks to run even if one panics")
-	}
 }

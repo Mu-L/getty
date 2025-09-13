@@ -103,21 +103,13 @@ func (t *callbacks) Remove(handler, key any) {
 // Invoke executes all registered callback functions in the linked list
 // Executes each callback in the order they were added
 // Note: If a callback function is nil, it will be skipped
-// If a callback panics, it will be caught and the execution will continue with the next callback
+// If a callback panics, it will be handled by the outer caller's panic recovery
 func (t *callbacks) Invoke() {
 	// Traverse the entire linked list starting from the head node
 	for callback := t.first; callback != nil; callback = callback.next {
 		// Ensure callback function is not nil before executing
 		if callback.call != nil {
-			// Execute callback with panic recovery to ensure other callbacks continue
-			func() {
-				defer func() {
-					if r := recover(); r != nil {
-						// Panic caught, continue with next callback
-					}
-				}()
-				callback.call()
-			}()
+			callback.call()
 		}
 	}
 }
