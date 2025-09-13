@@ -200,6 +200,9 @@ func (s *session) Reset() {
 		period: period,
 		wait:   pendingDuration,
 		attrs:  gxcontext.NewValuesContext(context.Background()),
+		// callbacks: intentionally cleared on reset
+		// closeCallback: zero-value (empty registry)
+		// closeCallbackMutex: zero-value (unlocked)
 	}
 }
 
@@ -872,7 +875,10 @@ func (s *session) stop() {
 			go func() {
 				defer func() {
 					if r := recover(); r != nil {
-						log.Errorf("invokeCloseCallbacks panic: %v", r)
+						const size = 64 << 10
+						buf := make([]byte, size)
+						buf = buf[:runtime.Stack(buf, false)]
+						log.Errorf("invokeCloseCallbacks panic: %v\n%s", r, buf)
 					}
 				}()
 				s.invokeCloseCallbacks()
