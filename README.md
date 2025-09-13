@@ -20,6 +20,38 @@ If you're using WebSocket, you don't need to worry about heartbeat request/respo
 
 For code examples, you can refer to [getty-examples](https://github.com/AlexStocks/getty-examples).
 
+## Callback System
+
+Getty provides a robust callback system that allows you to register and manage callback functions for session lifecycle events. This is particularly useful for cleanup operations, resource management, and custom event handling.
+
+### Key Features
+
+- **Thread-safe operations**: All callback operations are protected by mutex locks
+- **Replace semantics**: Adding a callback with the same handler and key will replace the existing one
+- **Panic safety**: Callback panics are properly handled and logged with stack traces
+- **Ordered execution**: Callbacks are executed in the order they were added
+
+### Usage Example
+
+```go
+// Add a close callback
+session.AddCloseCallback("cleanup", "resources", func() {
+    // Cleanup resources when session closes
+    cleanupResources()
+})
+
+// Remove a specific callback
+session.RemoveCloseCallback("cleanup", "resources")
+
+// Callbacks are automatically executed when the session closes
+```
+
+### Callback Management
+
+- **AddCloseCallback**: Register a callback to be executed when the session closes
+- **RemoveCloseCallback**: Remove a previously registered callback
+- **Thread Safety**: All operations are thread-safe and can be called concurrently
+
 ## About network transmission in getty
 
 In network communication, the data transmission interface of getty does not guarantee that data will be sent successfully; it lacks an internal retry mechanism. Instead, getty delegates the outcome of data transmission to the underlying operating system mechanism. Under this mechanism, if data is successfully transmitted, it is considered a success; if transmission fails, it is regarded as a failure. These outcomes are then communicated back to the upper-layer caller.

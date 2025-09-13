@@ -20,6 +20,38 @@ Getty 是一个使用 Golang 开发的异步网络 I/O 库。它适用于 TCP、
 
 有关代码示例，请参阅 [AlexStocks/getty-examples](https://github.com/AlexStocks/getty-examples)。
 
+## 回调系统
+
+Getty 提供了一个强大的回调系统，允许您为会话生命周期事件注册和管理回调函数。这对于清理操作、资源管理和自定义事件处理特别有用。
+
+### 主要特性
+
+- **线程安全操作**：所有回调操作都受到互斥锁保护
+- **替换语义**：使用相同的处理器和键添加回调将替换现有的回调
+- **Panic 安全性**：回调中的 panic 会被正确处理并记录堆栈跟踪
+- **有序执行**：回调按照添加的顺序执行
+
+### 使用示例
+
+```go
+// 添加关闭回调
+session.AddCloseCallback("cleanup", "resources", func() {
+    // 当会话关闭时清理资源
+    cleanupResources()
+})
+
+// 移除特定回调
+session.RemoveCloseCallback("cleanup", "resources")
+
+// 当会话关闭时，回调会自动执行
+```
+
+### 回调管理
+
+- **AddCloseCallback**：注册一个在会话关闭时执行的回调
+- **RemoveCloseCallback**：移除之前注册的回调
+- **线程安全**：所有操作都是线程安全的，可以并发调用
+
 ## 关于 Getty 中的网络传输
 
 在网络通信中，Getty 的数据传输接口并不保证数据一定会成功发送，它缺乏内部的重试机制。相反，Getty 将数据传输的结果委托给底层操作系统机制处理。在这种机制下，如果数据成功传输，将被视为成功；如果传输失败，则被视为失败。这些结果随后会传递给上层调用者。
