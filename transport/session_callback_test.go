@@ -11,62 +11,62 @@ func TestSessionCallback(t *testing.T) {
 	// Test basic add, remove and execute callback functionality
 	t.Run("BasicCallback", func(t *testing.T) {
 		s := &session{
-			once: &sync.Once{},
-			done: make(chan struct{}),
+			once:          &sync.Once{},
+			done:          make(chan struct{}),
 			closeCallback: callbacks{},
 		}
-		
+
 		var callbackExecuted bool
 		var callbackMutex sync.Mutex
-		
+
 		callback := func() {
 			callbackMutex.Lock()
 			callbackExecuted = true
 			callbackMutex.Unlock()
 		}
-		
+
 		// Add callback
 		s.AddCloseCallback("testHandler", "testKey", callback)
 		if s.closeCallback.Count() != 1 {
 			t.Errorf("Expected callback count is 1, but got %d", s.closeCallback.Count())
 		}
-		
+
 		// Test removing callback
 		s.RemoveCloseCallback("testHandler", "testKey")
 		if s.closeCallback.Count() != 0 {
 			t.Errorf("Expected callback count is 0, but got %d", s.closeCallback.Count())
 		}
-		
+
 		// Re-add callback
 		s.AddCloseCallback("testHandler", "testKey", callback)
-		
+
 		// Test callback execution when closing
 		go func() {
 			time.Sleep(10 * time.Millisecond)
 			s.stop()
 		}()
-		
+
 		// Wait for callback execution
 		time.Sleep(50 * time.Millisecond)
-		
+
 		callbackMutex.Lock()
 		if !callbackExecuted {
 			t.Error("Callback function was not executed")
 		}
 		callbackMutex.Unlock()
 	})
-	
+
 	// Test adding, removing and executing multiple callbacks
 	t.Run("MultipleCallbacks", func(t *testing.T) {
 		s := &session{
-			once: &sync.Once{},
-			done: make(chan struct{}),
+			once:          &sync.Once{},
+			done:          make(chan struct{}),
 			closeCallback: callbacks{},
 		}
-		
+
 		var callbackCount int
 		var callbackMutex sync.Mutex
-		
+
 		// Add multiple callbacks
 		totalCallbacks := 3
 		for i := 0; i < totalCallbacks; i++ {
@@ -78,44 +78,44 @@ func TestSessionCallback(t *testing.T) {
 			}
 			s.AddCloseCallback(fmt.Sprintf("handler%d", index), fmt.Sprintf("key%d", index), callback)
 		}
-		
+
 		if s.closeCallback.Count() != totalCallbacks {
 			t.Errorf("Expected callback count is %d, but got %d", totalCallbacks, s.closeCallback.Count())
 		}
-		
+
 		// Remove one callback
 		s.RemoveCloseCallback("handler0", "key0")
 		expectedAfterRemove := totalCallbacks - 1
 		if s.closeCallback.Count() != expectedAfterRemove {
 			t.Errorf("Expected callback count is %d, but got %d", expectedAfterRemove, s.closeCallback.Count())
 		}
-		
+
 		// Test execution of remaining callbacks when closing
 		go func() {
 			time.Sleep(10 * time.Millisecond)
 			s.stop()
 		}()
-		
+
 		time.Sleep(50 * time.Millisecond)
-		
+
 		callbackMutex.Lock()
 		if callbackCount != expectedAfterRemove {
 			t.Errorf("Expected executed callback count is %d, but got %d", expectedAfterRemove, callbackCount)
 		}
 		callbackMutex.Unlock()
 	})
-	
+
 	// Test invokeCloseCallbacks functionality
 	t.Run("InvokeCloseCallbacks", func(t *testing.T) {
 		s := &session{
-			once: &sync.Once{},
-			done: make(chan struct{}),
+			once:          &sync.Once{},
+			done:          make(chan struct{}),
 			closeCallback: callbacks{},
 		}
-		
+
 		var callbackResults []string
 		var callbackMutex sync.Mutex
-		
+
 		// Add multiple different types of close callbacks
 		callbacks := []struct {
 			handler string
@@ -127,7 +127,7 @@ func TestSessionCallback(t *testing.T) {
 			{"logging", "audit", "Log audit info"},
 			{"metrics", "stats", "Update statistics"},
 		}
-		
+
 		// Register all callbacks
 		for _, cb := range callbacks {
 			cbCopy := cb // Capture loop variable
@@ -138,30 +138,30 @@ func TestSessionCallback(t *testing.T) {
 			}
 			s.AddCloseCallback(cbCopy.handler, cbCopy.key, callback)
 		}
-		
+
 		// Verify callback count
 		expectedCount := len(callbacks)
 		if s.closeCallback.Count() != expectedCount {
 			t.Errorf("Expected callback count is %d, but got %d", expectedCount, s.closeCallback.Count())
 		}
-		
+
 		// Manually invoke close callbacks (simulate invokeCloseCallbacks)
 		callbackMutex.Lock()
 		callbackResults = nil // Clear previous results
 		callbackMutex.Unlock()
-		
+
 		// Execute all close callbacks
 		s.closeCallback.Invoke()
-		
+
 		// Wait for callback execution to complete
 		time.Sleep(10 * time.Millisecond)
-		
+
 		// Verify all callbacks were executed
 		callbackMutex.Lock()
 		if len(callbackResults) != expectedCount {
 			t.Errorf("Expected to execute %d callbacks, but executed %d", expectedCount, len(callbackResults))
 		}
-		
+
 		// Verify callback execution order (should execute in order of addition)
 		expectedActions := []string{"Clean resources", "Close connections", "Log audit info", "Update statistics"}
 		for i, result := range callbackResults {
@@ -170,18 +170,18 @@ func TestSessionCallback(t *testing.T) {
 			}
 		}
 		callbackMutex.Unlock()
-		
+
 		// Test execution after removing a callback
 		s.RemoveCloseCallback("cleanup", "resources")
-		
+
 		callbackMutex.Lock()
 		callbackResults = nil
 		callbackMutex.Unlock()
-		
+
 		// Execute callbacks again
 		s.closeCallback.Invoke()
 		time.Sleep(10 * time.Millisecond)
-		
+
 		// Verify execution results after removal
 		callbackMutex.Lock()
 		expectedAfterRemove := expectedCount - 1
@@ -190,31 +190,31 @@ func TestSessionCallback(t *testing.T) {
 		}
 		callbackMutex.Unlock()
 	})
-	
+
 	// Test edge cases
 	t.Run("EdgeCases", func(t *testing.T) {
 		// Test empty callback list scenario
 		s := &session{
-			once: &sync.Once{},
-			done: make(chan struct{}),
+			once:          &sync.Once{},
+			done:          make(chan struct{}),
 			closeCallback: callbacks{},
 		}
-		
+
 		// Verify empty list
 		if s.closeCallback.Count() != 0 {
 			t.Errorf("Expected count for empty list is 0, but got %d", s.closeCallback.Count())
 		}
-		
+
 		// Execute empty callback list (should not panic)
 		s.closeCallback.Invoke()
-		
+
 		// Add a callback then remove it, execute again
 		s.AddCloseCallback("test", "key", func() {})
 		s.RemoveCloseCallback("test", "key")
-		
+
 		// Execute empty list after removal (should not panic)
 		s.closeCallback.Invoke()
-		
+
 		if s.closeCallback.Count() != 0 {
 			t.Errorf("Expected count after removal is 0, but got %d", s.closeCallback.Count())
 		}

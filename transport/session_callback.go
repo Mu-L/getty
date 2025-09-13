@@ -1,7 +1,24 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package getty
 
 // AddCloseCallback adds a close callback function to the Session
-// 
+//
 // Parameters:
 //   - handler: handler identifier, used to identify the source or type of the callback
 //   - key: unique identifier key for the callback, used in combination with handler
@@ -21,7 +38,7 @@ func (s *session) AddCloseCallback(handler, key any, f CallBackFunc) {
 }
 
 // RemoveCloseCallback removes the specified Session close callback function
-// 
+//
 // Parameters:
 //   - handler: handler identifier of the callback to be removed
 //   - key: unique identifier key of the callback to be removed
@@ -42,7 +59,7 @@ func (s *session) RemoveCloseCallback(handler, key any) {
 }
 
 // invokeCloseCallbacks executes all registered close callback functions
-// 
+//
 // Function description:
 //   - Executes all registered close callbacks in the order they were added
 //   - Uses read lock to protect the callback list, ensuring concurrency safety
@@ -59,7 +76,7 @@ func (s *session) invokeCloseCallbacks() {
 }
 
 // CallBackFunc defines the callback function type when Session closes
-// 
+//
 // Usage notes:
 //   - Callback function accepts no parameters
 //   - Callback function returns no values
