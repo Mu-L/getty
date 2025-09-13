@@ -20,8 +20,8 @@ package getty
 // callbackCommon represents a node in the callback linked list
 // Each node contains handler identifier, key, callback function and pointer to next node
 type callbackCommon struct {
-	handler interface{}     // Handler identifier, used to identify the source or type of callback
-	key     interface{}     // Unique identifier key for callback, used in combination with handler
+	handler any     // Handler identifier, used to identify the source or type of callback
+	key     any     // Unique identifier key for callback, used in combination with handler
 	call    func()          // Actual callback function to be executed
 	next    *callbackCommon // Pointer to next node, forming linked list structure
 }
@@ -38,10 +38,20 @@ type callbacks struct {
 //   - handler: Handler identifier, can be any type
 //   - key: Unique identifier key for callback, used in combination with handler
 //   - callback: Callback function to be executed, ignored if nil
-func (t *callbacks) Add(handler, key interface{}, callback func()) {
+// Note: If a callback with the same handler and key already exists, it will be replaced
+func (t *callbacks) Add(handler, key any, callback func()) {
 	// Prevent adding empty callback function
 	if callback == nil {
 		return
+	}
+
+	// Check if a callback with the same handler and key already exists
+	for cb := t.first; cb != nil; cb = cb.next {
+		if cb.handler == handler && cb.key == key {
+			// Replace existing callback
+			cb.call = callback
+			return
+		}
 	}
 
 	// Create new callback node
@@ -64,7 +74,7 @@ func (t *callbacks) Add(handler, key interface{}, callback func()) {
 //   - key: Unique identifier key of the callback to be removed
 //
 // Note: If no matching callback is found, this method has no effect
-func (t *callbacks) Remove(handler, key interface{}) {
+func (t *callbacks) Remove(handler, key any) {
 	var prev *callbackCommon
 
 	// Traverse linked list to find the node to be removed
@@ -93,12 +103,21 @@ func (t *callbacks) Remove(handler, key interface{}) {
 // Invoke executes all registered callback functions in the linked list
 // Executes each callback in the order they were added
 // Note: If a callback function is nil, it will be skipped
+// If a callback panics, it will be caught and the execution will continue with the next callback
 func (t *callbacks) Invoke() {
 	// Traverse the entire linked list starting from the head node
 	for callback := t.first; callback != nil; callback = callback.next {
 		// Ensure callback function is not nil before executing
 		if callback.call != nil {
-			callback.call()
+			// Execute callback with panic recovery to ensure other callbacks continue
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						// Panic caught, continue with next callback
+					}
+				}()
+				callback.call()
+			}()
 		}
 	}
 }

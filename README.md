@@ -18,7 +18,7 @@ Additionally, you can manage heartbeat logic within the (Codec)OnCron method in 
 
 If you're using WebSocket, you don't need to worry about heartbeat request/response, as Getty handles this task within session.go's (Session)handleLoop method by sending and receiving WebSocket ping/pong frames. Your responsibility is to check whether the WebSocket session has timed out or not within codec.go's (Codec)OnCron method using session.go's (Session)GetActive method.
 
-For code examples, you can refer to https://github.com/AlexStocks/getty-examples.
+For code examples, you can refer to [getty-examples](https://github.com/AlexStocks/getty-examples).
 
 ## About network transmission in getty
 

@@ -28,6 +28,9 @@ func TestCallback(t *testing.T) {
 		t.Errorf("Expected count for empty list is 0, but got %d", cb.Count())
 	}
 
+	// Ensure invoking on an empty registry is a no-op (no panic).
+	cb.Invoke()
+
 	// Test adding callback functions
 	var count, expected, remove, totalCount int
 	totalCount = 10
@@ -53,6 +56,12 @@ func TestCallback(t *testing.T) {
 		t.Errorf("Expected count after adding nil callback is %d, but got %d", expectedCallbacks, cb.Count())
 	}
 
+	// Replace an existing callback with a non-nil one; count should remain unchanged.
+	cb.Add(remove, remove, func() { count += remove })
+	if cb.Count() != expectedCallbacks {
+		t.Errorf("Expected count after replacing existing callback is %d, but got %d", expectedCallbacks, cb.Count())
+	}
+
 	// Remove specified callback
 	cb.Remove(remove, remove)
 
@@ -63,9 +72,9 @@ func TestCallback(t *testing.T) {
 	cb.Invoke()
 
 	// Verify execution result
-	expectedCount := expected - remove
-	if count != expectedCount {
-		t.Errorf("Expected execution result is %d, but got %d", expectedCount, count)
+	expectedSum := expected - remove
+	if count != expectedSum {
+		t.Errorf("Expected execution result is %d, but got %d", expectedSum, count)
 	}
 
 	// Test string type handler and key
@@ -105,5 +114,17 @@ func TestCallback(t *testing.T) {
 	// Should still have 1 callback
 	if cb2.Count() != 1 {
 		t.Errorf("Expected callback count is 1, but got %d", cb2.Count())
+	}
+}
+
+func TestCallbackInvokePanicSafe(t *testing.T) {
+	cb := &callbacks{}
+	var ran bool
+	cb.Add("h", "k1", func() { panic("boom") })
+	cb.Add("h", "k2", func() { ran = true })
+	// Expect: Invoke swallows panics and continues executing remaining callbacks.
+	cb.Invoke()
+	if !ran {
+		t.Errorf("Expected subsequent callbacks to run even if one panics")
 	}
 }
