@@ -17,20 +17,20 @@
 
 package getty
 
-// callbackCommon represents a node in the callback linked list
+// callbackNode represents a node in the callback linked list
 // Each node contains handler identifier, key, callback function and pointer to next node
-type callbackCommon struct {
-	handler any             // Handler identifier, used to identify the source or type of callback
-	key     any             // Unique identifier key for callback, used in combination with handler
-	call    func()          // Actual callback function to be executed
-	next    *callbackCommon // Pointer to next node, forming linked list structure
+type callbackNode struct {
+	handler any           // Handler identifier, used to identify the source or type of callback
+	key     any           // Unique identifier key for callback, used in combination with handler
+	call    func()        // Actual callback function to be executed
+	next    *callbackNode // Pointer to next node, forming linked list structure
 }
 
 // callbacks is a singly linked list structure for managing multiple callback functions
 // Supports dynamic addition, removal and execution of callbacks
 type callbacks struct {
-	first *callbackCommon // Pointer to the first node of the linked list
-	last  *callbackCommon // Pointer to the last node of the linked list, used for quick addition of new nodes
+	first *callbackNode // Pointer to the first node of the linked list
+	last  *callbackNode // Pointer to the last node of the linked list, used for quick addition of new nodes
 }
 
 // Add adds a new callback function to the callback linked list
@@ -56,7 +56,7 @@ func (t *callbacks) Add(handler, key any, callback func()) {
 	}
 
 	// Create new callback node
-	newItem := &callbackCommon{handler, key, callback, nil}
+	newItem := &callbackNode{handler, key, callback, nil}
 
 	if t.first == nil {
 		// If linked list is empty, new node becomes the first node
@@ -76,7 +76,7 @@ func (t *callbacks) Add(handler, key any, callback func()) {
 //
 // Note: If no matching callback is found, this method has no effect
 func (t *callbacks) Remove(handler, key any) {
-	var prev *callbackCommon
+	var prev *callbackNode
 
 	// Traverse linked list to find the node to be removed
 	for callback := t.first; callback != nil; prev, callback = callback, callback.next {
@@ -115,9 +115,9 @@ func (t *callbacks) Invoke() {
 	}
 }
 
-// Count returns the number of callback functions in the linked list
+// Len returns the number of callback functions in the linked list
 // Return value: Total number of currently registered callback functions
-func (t *callbacks) Count() int {
+func (t *callbacks) Len() int {
 	var count int
 
 	// Traverse linked list to count

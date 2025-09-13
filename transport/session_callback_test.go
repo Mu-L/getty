@@ -44,14 +44,14 @@ func TestSessionCallback(t *testing.T) {
 
 		// Add callback
 		s.AddCloseCallback("testHandler", "testKey", callback)
-		if s.closeCallback.Count() != 1 {
-			t.Errorf("Expected callback count is 1, but got %d", s.closeCallback.Count())
+		if s.closeCallback.Len() != 1 {
+			t.Errorf("Expected callback count is 1, but got %d", s.closeCallback.Len())
 		}
 
 		// Test removing callback
 		s.RemoveCloseCallback("testHandler", "testKey")
-		if s.closeCallback.Count() != 0 {
-			t.Errorf("Expected callback count is 0, but got %d", s.closeCallback.Count())
+		if s.closeCallback.Len() != 0 {
+			t.Errorf("Expected callback count is 0, but got %d", s.closeCallback.Len())
 		}
 
 		// Re-add callback
@@ -96,15 +96,15 @@ func TestSessionCallback(t *testing.T) {
 			s.AddCloseCallback(fmt.Sprintf("handler%d", index), fmt.Sprintf("key%d", index), callback)
 		}
 
-		if s.closeCallback.Count() != totalCallbacks {
-			t.Errorf("Expected callback count is %d, but got %d", totalCallbacks, s.closeCallback.Count())
+		if s.closeCallback.Len() != totalCallbacks {
+			t.Errorf("Expected callback count is %d, but got %d", totalCallbacks, s.closeCallback.Len())
 		}
 
 		// Remove one callback
 		s.RemoveCloseCallback("handler0", "key0")
 		expectedAfterRemove := totalCallbacks - 1
-		if s.closeCallback.Count() != expectedAfterRemove {
-			t.Errorf("Expected callback count is %d, but got %d", expectedAfterRemove, s.closeCallback.Count())
+		if s.closeCallback.Len() != expectedAfterRemove {
+			t.Errorf("Expected callback count is %d, but got %d", expectedAfterRemove, s.closeCallback.Len())
 		}
 
 		// Test execution of remaining callbacks when closing
@@ -158,8 +158,8 @@ func TestSessionCallback(t *testing.T) {
 
 		// Verify callback count
 		expectedCount := len(callbacks)
-		if s.closeCallback.Count() != expectedCount {
-			t.Errorf("Expected callback count is %d, but got %d", expectedCount, s.closeCallback.Count())
+		if s.closeCallback.Len() != expectedCount {
+			t.Errorf("Expected callback count is %d, but got %d", expectedCount, s.closeCallback.Len())
 		}
 
 		// Manually invoke close callbacks (simulate invokeCloseCallbacks)
@@ -218,8 +218,8 @@ func TestSessionCallback(t *testing.T) {
 		}
 
 		// Verify empty list
-		if s.closeCallback.Count() != 0 {
-			t.Errorf("Expected count for empty list is 0, but got %d", s.closeCallback.Count())
+		if s.closeCallback.Len() != 0 {
+			t.Errorf("Expected count for empty list is 0, but got %d", s.closeCallback.Len())
 		}
 
 		// Execute empty callback list (should not panic)
@@ -232,8 +232,8 @@ func TestSessionCallback(t *testing.T) {
 		// Execute empty list after removal (should not panic)
 		s.closeCallback.Invoke()
 
-		if s.closeCallback.Count() != 0 {
-			t.Errorf("Expected count after removal is 0, but got %d", s.closeCallback.Count())
+		if s.closeCallback.Len() != 0 {
+			t.Errorf("Expected count after removal is 0, but got %d", s.closeCallback.Len())
 		}
 	})
 }

@@ -24,8 +24,8 @@ import (
 func TestCallback(t *testing.T) {
 	// Test empty list
 	cb := &callbacks{}
-	if cb.Count() != 0 {
-		t.Errorf("Expected count for empty list is 0, but got %d", cb.Count())
+	if cb.Len() != 0 {
+		t.Errorf("Expected count for empty list is 0, but got %d", cb.Len())
 	}
 
 	// Ensure invoking on an empty registry is a no-op (no panic).
@@ -46,20 +46,20 @@ func TestCallback(t *testing.T) {
 
 	// Verify count after adding
 	expectedCallbacks := totalCount - 1
-	if cb.Count() != expectedCallbacks {
-		t.Errorf("Expected callback count is %d, but got %d", expectedCallbacks, cb.Count())
+	if cb.Len() != expectedCallbacks {
+		t.Errorf("Expected callback count is %d, but got %d", expectedCallbacks, cb.Len())
 	}
 
 	// Test adding nil callback
 	cb.Add(remove, remove, nil)
-	if cb.Count() != expectedCallbacks {
-		t.Errorf("Expected count after adding nil callback is %d, but got %d", expectedCallbacks, cb.Count())
+	if cb.Len() != expectedCallbacks {
+		t.Errorf("Expected count after adding nil callback is %d, but got %d", expectedCallbacks, cb.Len())
 	}
 
 	// Replace an existing callback with a non-nil one; count should remain unchanged.
 	cb.Add(remove, remove, func() { count += remove })
-	if cb.Count() != expectedCallbacks {
-		t.Errorf("Expected count after replacing existing callback is %d, but got %d", expectedCallbacks, cb.Count())
+	if cb.Len() != expectedCallbacks {
+		t.Errorf("Expected count after replacing existing callback is %d, but got %d", expectedCallbacks, cb.Len())
 	}
 
 	// Remove specified callback
@@ -85,26 +85,26 @@ func TestCallback(t *testing.T) {
 	cb2.Add("handler2", "key2", func() {})
 	cb2.Add("handler3", "key3", func() {})
 
-	if cb2.Count() != 3 {
-		t.Errorf("Expected callback count is 3, but got %d", cb2.Count())
+	if cb2.Len() != 3 {
+		t.Errorf("Expected callback count is 3, but got %d", cb2.Len())
 	}
 
 	// Remove middle callback
 	cb2.Remove("handler2", "key2")
-	if cb2.Count() != 2 {
-		t.Errorf("Expected count after removing middle callback is 2, but got %d", cb2.Count())
+	if cb2.Len() != 2 {
+		t.Errorf("Expected count after removing middle callback is 2, but got %d", cb2.Len())
 	}
 
 	// Remove first callback
 	cb2.Remove("handler1", "key1")
-	if cb2.Count() != 1 {
-		t.Errorf("Expected count after removing first callback is 1, but got %d", cb2.Count())
+	if cb2.Len() != 1 {
+		t.Errorf("Expected count after removing first callback is 1, but got %d", cb2.Len())
 	}
 
 	// Remove last callback
 	cb2.Remove("handler3", "key3")
-	if cb2.Count() != 0 {
-		t.Errorf("Expected count after removing last callback is 0, but got %d", cb2.Count())
+	if cb2.Len() != 0 {
+		t.Errorf("Expected count after removing last callback is 0, but got %d", cb2.Len())
 	}
 
 	// Test removing non-existent callback
@@ -112,8 +112,8 @@ func TestCallback(t *testing.T) {
 	cb2.Remove("handler2", "key2") // Try to remove non-existent callback
 
 	// Should still have 1 callback
-	if cb2.Count() != 1 {
-		t.Errorf("Expected callback count is 1, but got %d", cb2.Count())
+	if cb2.Len() != 1 {
+		t.Errorf("Expected callback count is 1, but got %d", cb2.Len())
 	}
 }
 

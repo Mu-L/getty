@@ -872,17 +872,20 @@ func (s *session) stop() {
 			}
 			close(s.done)
 
-			go func() {
+			go func(sessionToken string) {
 				defer func() {
 					if r := recover(); r != nil {
 						const size = 64 << 10
-						buf := make([]byte, size)
-						buf = buf[:runtime.Stack(buf, false)]
-						log.Errorf("invokeCloseCallbacks panic: %v\n%s", r, buf)
+						rBuf := make([]byte, size)
+						rBuf = rBuf[:runtime.Stack(rBuf, false)]
+						err := perrors.WithStack(fmt.Errorf("[session.invokeCloseCallbacks] panic session %s: err=%v\n%s",
+							sessionToken, r, rBuf))
+						log.Error(err)
 					}
 				}()
+
 				s.invokeCloseCallbacks()
-			}()
+			}(s.sessionToken())
 
 			clt, cltFound := s.GetAttribute(sessionClientKey).(*client)
 			ignoreReconnect, flagFound := s.GetAttribute(ignoreReconnectKey).(bool)
