@@ -200,9 +200,6 @@ func (s *session) Reset() {
 		period: period,
 		wait:   pendingDuration,
 		attrs:  gxcontext.NewValuesContext(context.Background()),
-		// callbacks: intentionally cleared on reset
-		// closeCallback: zero-value (empty registry)
-		// closeCallbackMutex: zero-value (unlocked)
 	}
 }
 

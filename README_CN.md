@@ -61,12 +61,12 @@ session.RemoveCloseCallback("cleanup", "resources")
 **✅ 支持的类型：**
 - **基本类型**：`string`、`int`、`int8`、`int16`、`int32`、`int64`、`uint`、`uint8`、`uint16`、`uint32`、`uint64`、`uintptr`、`float32`、`float64`、`bool`、`complex64`、`complex128`
 - **指针类型**：指向任何类型的指针（如 `*int`、`*string`、`*MyStruct`）
-- **接口类型**：接口类型（按类型和值比较）
+- **接口类型**：仅当其动态值为可比较类型时可比较；若动态值不可比较，使用"=="将触发运行时 panic
 - **通道类型**：通道类型（按通道标识比较）
 - **数组类型**：可比较元素的数组（如 `[3]int`、`[2]string`）
 - **结构体类型**：所有字段都是可比较类型的结构体
 
-**❌ 不支持的类型（会导致编译错误）：**
+**❌ 不支持的类型（用于比较将导致运行时 panic）：**
 - `map` 类型（如 `map[string]int`）
 - `slice` 类型（如 `[]int`、`[]string`）
 - `func` 类型（如 `func()`、`func(int) string`）
@@ -79,7 +79,7 @@ session.AddCloseCallback("user", "cleanup", callback)
 session.AddCloseCallback(123, "cleanup", callback)
 session.AddCloseCallback(true, false, callback)
 
-// ❌ 无效用法（编译错误）
+// ❌ 无效用法（运行时将因比较不可比较类型而 panic）
 session.AddCloseCallback(map[string]int{"a": 1}, "key", callback)
 session.AddCloseCallback([]int{1, 2, 3}, "key", callback)
 ```
