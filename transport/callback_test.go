@@ -161,10 +161,10 @@ func TestCallbackNonComparableTypes(t *testing.T) {
 	for _, tt := range nonComparableTypes {
 		t.Run(tt.name, func(t *testing.T) {
 			initialCount := cb.Len()
-			
+
 			// Try to add callback
 			cb.Add(tt.handler, tt.key, func() {})
-			
+
 			// Check if callback was added
 			finalCount := cb.Len()
 			if tt.expected {
@@ -184,10 +184,10 @@ func TestCallbackNonComparableTypes(t *testing.T) {
 	// Test Remove with non-comparable types
 	t.Run("RemoveNonComparable", func(t *testing.T) {
 		initialCount := cb.Len()
-		
+
 		// Try to remove with non-comparable types
 		cb.Remove([]int{1, 2, 3}, map[string]int{"a": 1})
-		
+
 		// Count should remain unchanged
 		if cb.Len() != initialCount {
 			t.Errorf("Expected count to remain %d after removing non-comparable types, but got %d", initialCount, cb.Len())
