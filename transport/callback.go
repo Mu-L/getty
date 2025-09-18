@@ -31,6 +31,7 @@ type callbackNode struct {
 type callbacks struct {
 	first *callbackNode // Pointer to the first node of the linked list
 	last  *callbackNode // Pointer to the last node of the linked list, used for quick addition of new nodes
+	cbNum int           // Number of callback functions in the linked list
 }
 
 // Add adds a new callback function to the callback linked list
@@ -67,6 +68,8 @@ func (t *callbacks) Add(handler, key any, callback func()) {
 	}
 	// Update pointer to last node
 	t.last = newItem
+	// Increment callback count
+	t.cbNum++
 }
 
 // Remove removes the specified callback function from the callback linked list
@@ -95,6 +98,9 @@ func (t *callbacks) Remove(handler, key any) {
 				t.last = prev
 			}
 
+			// Decrement callback count
+			t.cbNum--
+
 			// Return immediately after finding and removing
 			return
 		}
@@ -118,12 +124,5 @@ func (t *callbacks) Invoke() {
 // Len returns the number of callback functions in the linked list
 // Return value: Total number of currently registered callback functions
 func (t *callbacks) Len() int {
-	var count int
-
-	// Traverse linked list to count
-	for callback := t.first; callback != nil; callback = callback.next {
-		count++
-	}
-
-	return count
+	return t.cbNum
 }

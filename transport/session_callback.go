@@ -33,8 +33,8 @@ func (s *session) AddCloseCallback(handler, key any, f CallBackFunc) {
 		return
 	}
 	s.closeCallbackMutex.Lock()
+	defer s.closeCallbackMutex.Unlock()
 	s.closeCallback.Add(handler, key, f)
-	s.closeCallbackMutex.Unlock()
 }
 
 // RemoveCloseCallback removes the specified Session close callback function
@@ -54,8 +54,8 @@ func (s *session) RemoveCloseCallback(handler, key any) {
 		return
 	}
 	s.closeCallbackMutex.Lock()
+	defer s.closeCallbackMutex.Unlock()
 	s.closeCallback.Remove(handler, key)
-	s.closeCallbackMutex.Unlock()
 }
 
 // invokeCloseCallbacks executes all registered close callback functions
@@ -71,8 +71,8 @@ func (s *session) RemoveCloseCallback(handler, key any) {
 //   - Callback functions should avoid long blocking operations, async processing is recommended for time-consuming tasks
 func (s *session) invokeCloseCallbacks() {
 	s.closeCallbackMutex.RLock()
+	defer s.closeCallbackMutex.RUnlock()
 	s.closeCallback.Invoke()
-	s.closeCallbackMutex.RUnlock()
 }
 
 // CallBackFunc defines the callback function type when Session closes
