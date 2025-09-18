@@ -17,6 +17,13 @@
 
 package getty
 
+import (
+	"fmt"
+	log "github.com/AlexStocks/getty/util"
+	perrors "github.com/pkg/errors"
+	"reflect"
+)
+
 // callbackNode represents a node in the callback linked list
 // Each node contains handler identifier, key, callback function and pointer to next node
 type callbackNode struct {
@@ -34,6 +41,15 @@ type callbacks struct {
 	cbNum int           // Number of callback functions in the linked list
 }
 
+// isComparable checks if a value is comparable using Go's == operator
+// Returns true if the value can be safely compared, false otherwise
+func isComparable(v any) bool {
+	if v == nil {
+		return true
+	}
+	return reflect.TypeOf(v).Comparable()
+}
+
 // Add adds a new callback function to the callback linked list
 // Parameters:
 //   - handler: Handler identifier, can be any type
@@ -44,6 +60,12 @@ type callbacks struct {
 func (t *callbacks) Add(handler, key any, callback func()) {
 	// Prevent adding empty callback function
 	if callback == nil {
+		return
+	}
+
+	// Guard: avoid runtime panic on non-comparable types
+	if !isComparable(handler) || !isComparable(key) {
+		log.Error(perrors.New(fmt.Sprintf("callbacks.Add: non-comparable handler/key: %T, %T; ignored", handler, key)))
 		return
 	}
 
@@ -79,6 +101,12 @@ func (t *callbacks) Add(handler, key any, callback func()) {
 //
 // Note: If no matching callback is found, this method has no effect
 func (t *callbacks) Remove(handler, key any) {
+	// Guard: avoid runtime panic on non-comparable types
+	if !isComparable(handler) || !isComparable(key) {
+		log.Error(perrors.New(fmt.Sprintf("callbacks.Remove: non-comparable handler/key: %T, %T; ignored", handler, key)))
+		return
+	}
+
 	var prev *callbackNode
 
 	// Traverse linked list to find the node to be removed
