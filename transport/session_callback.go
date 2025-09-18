@@ -29,11 +29,14 @@ package getty
 //   - The combination of handler and key must be unique, otherwise it will override previous callbacks
 //   - Callback functions will be executed in the order they were added when the session closes
 func (s *session) AddCloseCallback(handler, key any, f CallBackFunc) {
-	if s.IsClosed() {
+	if f == nil {
 		return
 	}
 	s.closeCallbackMutex.Lock()
 	defer s.closeCallbackMutex.Unlock()
+	if s.IsClosed() {
+		return
+	}
 	s.closeCallback.Add(handler, key, f)
 }
 
@@ -50,11 +53,11 @@ func (s *session) AddCloseCallback(handler, key any, f CallBackFunc) {
 //   - If no matching callback is found, this operation will have no effect
 //   - The removal operation is thread-safe
 func (s *session) RemoveCloseCallback(handler, key any) {
+	s.closeCallbackMutex.Lock()
+	defer s.closeCallbackMutex.Unlock()
 	if s.IsClosed() {
 		return
 	}
-	s.closeCallbackMutex.Lock()
-	defer s.closeCallbackMutex.Unlock()
 	s.closeCallback.Remove(handler, key)
 }
 
