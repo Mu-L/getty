@@ -19,9 +19,10 @@ package getty
 
 import (
 	"fmt"
+	"reflect"
+
 	log "github.com/AlexStocks/getty/util"
 	perrors "github.com/pkg/errors"
-	"reflect"
 )
 
 // callbackNode represents a node in the callback linked list
