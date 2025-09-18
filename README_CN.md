@@ -46,7 +46,7 @@ session.RemoveCloseCallback("cleanup", "resources")
 // 当会话关闭时，回调会自动执行
 ```
 
-**注意**：关闭回调应尽量快速、避免阻塞或长耗时操作，否则可能延长会话关闭耗时；重活移交到独立 goroutine。
+**注意**：关闭回调在会话关闭时会在独立 goroutine 中执行。
 
 ### 回调管理
 
@@ -61,12 +61,12 @@ session.RemoveCloseCallback("cleanup", "resources")
 **✅ 支持的类型：**
 - **基本类型**：`string`、`int`、`int8`、`int16`、`int32`、`int64`、`uint`、`uint8`、`uint16`、`uint32`、`uint64`、`uintptr`、`float32`、`float64`、`bool`、`complex64`、`complex128`
 - **指针类型**：指向任何类型的指针（如 `*int`、`*string`、`*MyStruct`）
-- **接口类型**：仅当其动态值为可比较类型时可比较；若动态值不可比较，使用"=="将触发运行时 panic
+- **接口类型**：仅当其动态值为可比较类型时可比较；若动态值不可比较，使用"=="将被安全忽略并记录错误日志
 - **通道类型**：通道类型（按通道标识比较）
 - **数组类型**：可比较元素的数组（如 `[3]int`、`[2]string`）
 - **结构体类型**：所有字段都是可比较类型的结构体
 
-**❌ 不支持的类型（用于比较将导致运行时 panic）：**
+**⚠️ 不可比较类型（将被安全忽略并记录错误日志）：**
 - `map` 类型（如 `map[string]int`）
 - `slice` 类型（如 `[]int`、`[]string`）
 - `func` 类型（如 `func()`、`func(int) string`）
@@ -79,9 +79,9 @@ session.AddCloseCallback("user", "cleanup", callback)
 session.AddCloseCallback(123, "cleanup", callback)
 session.AddCloseCallback(true, false, callback)
 
-// ❌ 无效用法（运行时将因比较不可比较类型而 panic）
-session.AddCloseCallback(map[string]int{"a": 1}, "key", callback)
-session.AddCloseCallback([]int{1, 2, 3}, "key", callback)
+// ⚠️ 不可比较类型（安全忽略并记录错误日志）
+session.AddCloseCallback(map[string]int{"a": 1}, "key", callback)  // 记录日志并忽略
+session.AddCloseCallback([]int{1, 2, 3}, "key", callback)          // 记录日志并忽略
 ```
 
 ## 关于 Getty 中的网络传输

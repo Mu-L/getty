@@ -46,7 +46,7 @@ session.RemoveCloseCallback("cleanup", "resources")
 // Callbacks are automatically executed when the session closes
 ```
 
-**Note**: Callbacks should be fast/non-blocking; move heavy work to separate goroutines to avoid delaying shutdown.
+**Note**: Callbacks are executed in a separate goroutine during session shutdown.
 
 ### Callback Management
 
@@ -61,12 +61,12 @@ The `handler` and `key` parameters must be **comparable types** that support the
 **✅ Supported types:**
 - **Basic types**: `string`, `int`, `int8`, `int16`, `int32`, `int64`, `uint`, `uint8`, `uint16`, `uint32`, `uint64`, `uintptr`, `float32`, `float64`, `bool`, `complex64`, `complex128`
 - **Pointer types**: Pointers to any type (e.g., `*int`, `*string`, `*MyStruct`)
-- **Interface types**: Interface types are comparable only when their dynamic values are comparable types; using "==" with non-comparable dynamic values will trigger a runtime panic
+- **Interface types**: Interface types are comparable only when their dynamic values are comparable types; using "==" with non-comparable dynamic values will be safely ignored with error log
 - **Channel types**: Channel types (compared by channel identity)
 - **Array types**: Arrays of comparable elements (e.g., `[3]int`, `[2]string`)
 - **Struct types**: Structs where all fields are comparable types
 
-**❌ Not supported (using these types for comparison will cause runtime panic):**
+**⚠️ Non-comparable types (will be safely ignored with error log):**
 - `map` types (e.g., `map[string]int`)
 - `slice` types (e.g., `[]int`, `[]string`)
 - `func` types (e.g., `func()`, `func(int) string`)
@@ -79,9 +79,9 @@ session.AddCloseCallback("user", "cleanup", callback)
 session.AddCloseCallback(123, "cleanup", callback)
 session.AddCloseCallback(true, false, callback)
 
-// ❌ Invalid usage (runtime will panic due to comparing non-comparable types)
-session.AddCloseCallback(map[string]int{"a": 1}, "key", callback)
-session.AddCloseCallback([]int{1, 2, 3}, "key", callback)
+// ⚠️ Non-comparable types (safely ignored with error log)
+session.AddCloseCallback(map[string]int{"a": 1}, "key", callback)  // Logged and ignored
+session.AddCloseCallback([]int{1, 2, 3}, "key", callback)          // Logged and ignored
 ```
 
 ## About network transmission in getty
