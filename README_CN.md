@@ -27,7 +27,7 @@ Getty 提供了一个强大的回调系统，允许您为会话生命周期事�
 ### 主要特性
 
 - **线程安全操作**：所有回调操作都受到互斥锁保护
-- **替换语义**：使用相同的处理器和键添加回调将替换现有的回调
+- **替换语义**：使用相同的 (handler, key) 添加会替换现有回调并保持位置不变
 - **Panic 安全性**：回调中的 panic 会被正确处理并记录堆栈跟踪
 - **有序执行**：回调按照添加的顺序执行
 
@@ -46,12 +46,12 @@ session.RemoveCloseCallback("cleanup", "resources")
 // 当会话关闭时，回调会自动执行
 ```
 
-**注意**：关闭回调在会话关闭时会在独立 goroutine 中执行。
+**注意**：在会话关闭期间，回调在专用 goroutine 中顺序执行以保持添加顺序。
 
 ### 回调管理
 
 - **AddCloseCallback**：注册一个在会话关闭时执行的回调
-- **RemoveCloseCallback**：移除之前注册的回调
+- **RemoveCloseCallback**：移除之前注册的回调（未找到时无操作；可安全多次调用）
 - **线程安全**：所有操作都是线程安全的，可以并发调用
 
 ### 类型要求
@@ -60,6 +60,7 @@ session.RemoveCloseCallback("cleanup", "resources")
 
 **✅ 支持的类型：**
 - **基本类型**：`string`、`int`、`int8`、`int16`、`int32`、`int64`、`uint`、`uint8`、`uint16`、`uint32`、`uint64`、`uintptr`、`float32`、`float64`、`bool`、`complex64`、`complex128`
+  - ⚠️ 避免使用 `float*`/`complex*` 作为键，因为 NaN 和精度语义问题；建议使用字符串/整数
 - **指针类型**：指向任何类型的指针（如 `*int`、`*string`、`*MyStruct`）
 - **接口类型**：仅当其动态值为可比较类型时可比较；若动态值不可比较，使用"=="将被安全忽略并记录错误日志
 - **通道类型**：通道类型（按通道标识比较）

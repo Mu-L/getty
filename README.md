@@ -27,7 +27,7 @@ Getty provides a robust callback system that allows you to register and manage c
 ### Key Features
 
 - **Thread-safe operations**: All callback operations are protected by mutex locks
-- **Replace semantics**: Adding a callback with the same handler and key will replace the existing one
+- **Replace semantics**: Adding with the same (handler, key) replaces the existing callback in place (position preserved)
 - **Panic safety**: Callback panics are properly handled and logged with stack traces
 - **Ordered execution**: Callbacks are executed in the order they were added
 
@@ -46,12 +46,12 @@ session.RemoveCloseCallback("cleanup", "resources")
 // Callbacks are automatically executed when the session closes
 ```
 
-**Note**: Callbacks are executed in a separate goroutine during session shutdown.
+**Note**: During session shutdown, callbacks are executed sequentially in a dedicated goroutine to preserve the add-order.
 
 ### Callback Management
 
 - **AddCloseCallback**: Register a callback to be executed when the session closes
-- **RemoveCloseCallback**: Remove a previously registered callback
+- **RemoveCloseCallback**: Remove a previously registered callback (no-op if not found; safe to call multiple times)
 - **Thread Safety**: All operations are thread-safe and can be called concurrently
 
 ### Type Requirements
@@ -60,6 +60,7 @@ The `handler` and `key` parameters must be **comparable types** that support the
 
 **✅ Supported types:**
 - **Basic types**: `string`, `int`, `int8`, `int16`, `int32`, `int64`, `uint`, `uint8`, `uint16`, `uint32`, `uint64`, `uintptr`, `float32`, `float64`, `bool`, `complex64`, `complex128`
+  - ⚠️ Avoid `float*`/`complex*` as keys due to NaN and precision semantics; prefer strings/ints
 - **Pointer types**: Pointers to any type (e.g., `*int`, `*string`, `*MyStruct`)
 - **Interface types**: Interface types are comparable only when their dynamic values are comparable types; using "==" with non-comparable dynamic values will be safely ignored with error log
 - **Channel types**: Channel types (compared by channel identity)
