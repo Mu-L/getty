@@ -28,7 +28,7 @@ Getty 提供了一个强大的回调系统，允许您为会话生命周期事�
 
 - **线程安全操作**：所有回调操作都受到互斥锁保护
 - **替换语义**：使用相同的 (handler, key) 添加会替换现有回调并保持位置不变
-- **Panic 安全性**：回调中的 panic 会被正确处理并记录堆栈跟踪
+- **Panic 安全性**：在会话关闭期间，回调在专用 goroutine 中运行，带有 defer/recover；panic 会被记录堆栈跟踪且不会逃逸出关闭路径
 - **有序执行**：回调按照添加的顺序执行
 
 ### 使用示例
@@ -41,12 +41,13 @@ session.AddCloseCallback("cleanup", "resources", func() {
 })
 
 // 移除特定回调
+// 即使从未添加过该对也可以安全调用（无操作）
 session.RemoveCloseCallback("cleanup", "resources")
 
 // 当会话关闭时，回调会自动执行
 ```
 
-**注意**：在会话关闭期间，回调在专用 goroutine 中顺序执行以保持添加顺序。
+**注意**：在会话关闭期间，回调在专用 goroutine 中顺序执行以保持添加顺序，带有 defer/recover 来记录 panic 而不让它们逃逸出关闭路径。
 
 ### 回调管理
 

@@ -28,7 +28,7 @@ Getty provides a robust callback system that allows you to register and manage c
 
 - **Thread-safe operations**: All callback operations are protected by mutex locks
 - **Replace semantics**: Adding with the same (handler, key) replaces the existing callback in place (position preserved)
-- **Panic safety**: Callback panics are properly handled and logged with stack traces
+- **Panic safety**: During session close, callbacks run in a dedicated goroutine with defer/recover; panics are logged with stack traces and do not escape the close path
 - **Ordered execution**: Callbacks are executed in the order they were added
 
 ### Usage Example
@@ -41,12 +41,13 @@ session.AddCloseCallback("cleanup", "resources", func() {
 })
 
 // Remove a specific callback
+// Safe to call even if the pair was never added (no-op)
 session.RemoveCloseCallback("cleanup", "resources")
 
 // Callbacks are automatically executed when the session closes
 ```
 
-**Note**: During session shutdown, callbacks are executed sequentially in a dedicated goroutine to preserve the add-order.
+**Note**: During session shutdown, callbacks are executed sequentially in a dedicated goroutine to preserve add-order, with defer/recover to log panics without letting them escape the close path.
 
 ### Callback Management
 
