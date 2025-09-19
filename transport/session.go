@@ -101,6 +101,9 @@ type Session interface {
 	WriteBytes([]byte) (int, error)
 	WriteBytesArray(...[]byte) (int, error)
 	Close()
+
+	AddCloseCallback(handler, key any, callback CallBackFunc)
+	RemoveCloseCallback(handler, key any)
 }
 
 // getty base session
@@ -135,6 +138,10 @@ type session struct {
 	grNum      uatomic.Int32
 	lock       sync.RWMutex
 	packetLock sync.RWMutex
+
+	// callbacks
+	closeCallback      callbacks
+	closeCallbackMutex sync.RWMutex
 }
 
 func newSession(endPoint EndPoint, conn Connection) *session {
@@ -861,6 +868,22 @@ func (s *session) stop() {
 				}
 			}
 			close(s.done)
+
+			go func(sessionToken string) {
+				defer func() {
+					if r := recover(); r != nil {
+						const size = 64 << 10
+						rBuf := make([]byte, size)
+						rBuf = rBuf[:runtime.Stack(rBuf, false)]
+						err := perrors.WithStack(fmt.Errorf("[session.invokeCloseCallbacks] panic session %s: err=%v\n%s",
+							sessionToken, r, rBuf))
+						log.Error(err)
+					}
+				}()
+
+				s.invokeCloseCallbacks()
+			}(s.sessionToken())
+
 			clt, cltFound := s.GetAttribute(sessionClientKey).(*client)
 			ignoreReconnect, flagFound := s.GetAttribute(ignoreReconnectKey).(bool)
 			if cltFound && flagFound && !ignoreReconnect {

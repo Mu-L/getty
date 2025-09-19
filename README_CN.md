@@ -18,7 +18,73 @@ Getty 是一个使用 Golang 开发的异步网络 I/O 库。它适用于 TCP、
 
 如果您使用 WebSocket，您无需担心心跳请求/响应，因为 Getty 在 session.go 的 (Session)handleLoop 方法内通过发送和接收 WebSocket ping/pong 帧来处理此任务。您只需在 codec.go 的 (Codec)OnCron 方法内使用 session.go 的 (Session)GetActive 方法检查 WebSocket 会话是否已超时。
 
-有关代码示例，请参阅 https://github.com/AlexStocks/getty-examples。
+有关代码示例，请参阅 [AlexStocks/getty-examples](https://github.com/AlexStocks/getty-examples)。
+
+## 回调系统
+
+Getty 提供了一个强大的回调系统，允许您为会话生命周期事件注册和管理回调函数。这对于清理操作、资源管理和自定义事件处理特别有用。
+
+### 主要特性
+
+- **线程安全操作**：所有回调操作都受到互斥锁保护
+- **替换语义**：使用相同的 (handler, key) 添加会替换现有回调并保持位置不变
+- **Panic 安全性**：在会话关闭期间，回调在专用 goroutine 中运行，带有 defer/recover；panic 会被记录堆栈跟踪且不会逃逸出关闭路径
+- **有序执行**：回调按照添加的顺序执行
+
+### 使用示例
+
+```go
+// 添加关闭回调
+session.AddCloseCallback("cleanup", "resources", func() {
+    // 当会话关闭时清理资源
+    cleanupResources()
+})
+
+// 移除特定回调
+// 即使从未添加过该对也可以安全调用（无操作）
+session.RemoveCloseCallback("cleanup", "resources")
+
+// 当会话关闭时，回调会自动执行
+```
+
+**注意**：在会话关闭期间，回调在专用 goroutine 中顺序执行以保持添加顺序，带有 defer/recover 来记录 panic 而不让它们逃逸出关闭路径。
+
+### 回调管理
+
+- **AddCloseCallback**：注册一个在会话关闭时执行的回调
+- **RemoveCloseCallback**：移除之前注册的回调（未找到时无操作；可安全多次调用）
+- **线程安全**：所有操作都是线程安全的，可以并发调用
+
+### 类型要求
+
+`handler` 和 `key` 参数必须是**可比较的类型**，支持 `==` 操作符：
+
+**✅ 支持的类型：**
+- **基本类型**：`string`、`int`、`int8`、`int16`、`int32`、`int64`、`uint`、`uint8`、`uint16`、`uint32`、`uint64`、`uintptr`、`float32`、`float64`、`bool`、`complex64`、`complex128`
+  - ⚠️ 避免使用 `float*`/`complex*` 作为键，因为 NaN 和精度语义问题；建议使用字符串/整数
+- **指针类型**：指向任何类型的指针（如 `*int`、`*string`、`*MyStruct`）
+- **接口类型**：仅当其动态值为可比较类型时可比较；若动态值不可比较，使用"=="将被安全忽略并记录错误日志
+- **通道类型**：通道类型（按通道标识比较）
+- **数组类型**：可比较元素的数组（如 `[3]int`、`[2]string`）
+- **结构体类型**：所有字段都是可比较类型的结构体
+
+**⚠️ 不可比较类型（将被安全忽略并记录错误日志）：**
+- `map` 类型（如 `map[string]int`）
+- `slice` 类型（如 `[]int`、`[]string`）
+- `func` 类型（如 `func()`、`func(int) string`）
+- 包含不可比较字段的结构体（maps、slices、functions）
+
+**示例：**
+```go
+// ✅ 有效用法
+session.AddCloseCallback("user", "cleanup", callback)
+session.AddCloseCallback(123, "cleanup", callback)
+session.AddCloseCallback(true, false, callback)
+
+// ⚠️ 不可比较类型（安全忽略并记录错误日志）
+session.AddCloseCallback(map[string]int{"a": 1}, "key", callback)  // 记录日志并忽略
+session.AddCloseCallback([]int{1, 2, 3}, "key", callback)          // 记录日志并忽略
+```
 
 ## 关于 Getty 中的网络传输
 

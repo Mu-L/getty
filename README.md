@@ -18,7 +18,73 @@ Additionally, you can manage heartbeat logic within the (Codec)OnCron method in 
 
 If you're using WebSocket, you don't need to worry about heartbeat request/response, as Getty handles this task within session.go's (Session)handleLoop method by sending and receiving WebSocket ping/pong frames. Your responsibility is to check whether the WebSocket session has timed out or not within codec.go's (Codec)OnCron method using session.go's (Session)GetActive method.
 
-For code examples, you can refer to https://github.com/AlexStocks/getty-examples.
+For code examples, you can refer to [getty-examples](https://github.com/AlexStocks/getty-examples).
+
+## Callback System
+
+Getty provides a robust callback system that allows you to register and manage callback functions for session lifecycle events. This is particularly useful for cleanup operations, resource management, and custom event handling.
+
+### Key Features
+
+- **Thread-safe operations**: All callback operations are protected by mutex locks
+- **Replace semantics**: Adding with the same (handler, key) replaces the existing callback in place (position preserved)
+- **Panic safety**: During session close, callbacks run in a dedicated goroutine with defer/recover; panics are logged with stack traces and do not escape the close path
+- **Ordered execution**: Callbacks are executed in the order they were added
+
+### Usage Example
+
+```go
+// Add a close callback
+session.AddCloseCallback("cleanup", "resources", func() {
+    // Cleanup resources when session closes
+    cleanupResources()
+})
+
+// Remove a specific callback
+// Safe to call even if the pair was never added (no-op)
+session.RemoveCloseCallback("cleanup", "resources")
+
+// Callbacks are automatically executed when the session closes
+```
+
+**Note**: During session shutdown, callbacks are executed sequentially in a dedicated goroutine to preserve add-order, with defer/recover to log panics without letting them escape the close path.
+
+### Callback Management
+
+- **AddCloseCallback**: Register a callback to be executed when the session closes
+- **RemoveCloseCallback**: Remove a previously registered callback (no-op if not found; safe to call multiple times)
+- **Thread Safety**: All operations are thread-safe and can be called concurrently
+
+### Type Requirements
+
+The `handler` and `key` parameters must be **comparable types** that support the `==` operator:
+
+**✅ Supported types:**
+- **Basic types**: `string`, `int`, `int8`, `int16`, `int32`, `int64`, `uint`, `uint8`, `uint16`, `uint32`, `uint64`, `uintptr`, `float32`, `float64`, `bool`, `complex64`, `complex128`
+  - ⚠️ Avoid `float*`/`complex*` as keys due to NaN and precision semantics; prefer strings/ints
+- **Pointer types**: Pointers to any type (e.g., `*int`, `*string`, `*MyStruct`)
+- **Interface types**: Interface types are comparable only when their dynamic values are comparable types; using "==" with non-comparable dynamic values will be safely ignored with error log
+- **Channel types**: Channel types (compared by channel identity)
+- **Array types**: Arrays of comparable elements (e.g., `[3]int`, `[2]string`)
+- **Struct types**: Structs where all fields are comparable types
+
+**⚠️ Non-comparable types (will be safely ignored with error log):**
+- `map` types (e.g., `map[string]int`)
+- `slice` types (e.g., `[]int`, `[]string`)
+- `func` types (e.g., `func()`, `func(int) string`)
+- Structs containing non-comparable fields (maps, slices, functions)
+
+**Examples:**
+```go
+// ✅ Valid usage
+session.AddCloseCallback("user", "cleanup", callback)
+session.AddCloseCallback(123, "cleanup", callback)
+session.AddCloseCallback(true, false, callback)
+
+// ⚠️ Non-comparable types (safely ignored with error log)
+session.AddCloseCallback(map[string]int{"a": 1}, "key", callback)  // Logged and ignored
+session.AddCloseCallback([]int{1, 2, 3}, "key", callback)          // Logged and ignored
+```
 
 ## About network transmission in getty
 
