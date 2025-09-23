@@ -249,6 +249,8 @@ type Session interface {
     SetPkgHandler(ReadWriter)
     SetReader(Reader)
     SetWriter(Writer)
+    GetActive() time.Time
+    UpdateActive()
     SetCronPeriod(int)
     SetWaitTime(time.Duration)
     SetReadTimeout(time.Duration)
@@ -267,13 +269,13 @@ type Session interface {
 
 #### Key Methods
 
-**Connection Management**
+##### Connection Management
 - **`Conn()`**: Get the underlying network connection object
 - **`IsClosed()`**: Check if the session is closed
 - **`Close()`**: Close the session connection
 - **`Reset()`**: Reset session state
 
-**Configuration Settings**
+##### Configuration Settings
 - **`SetName(string)`**: Set session name
 - **`SetMaxMsgLen(int)`**: Set maximum message length
 - **`SetCronPeriod(int)`**: Set heartbeat detection period (milliseconds)
@@ -281,23 +283,23 @@ type Session interface {
 - **`SetReadTimeout(time.Duration)`**: Set read timeout
 - **`SetWriteTimeout(time.Duration)`**: Set write timeout
 
-**Handler Settings**
+##### Handler Settings
 - **`SetEventListener(EventListener)`**: Set event listener for handling connection lifecycle events
 - **`SetPkgHandler(ReadWriter)`**: Set packet handler for parsing and serializing network data
 - **`SetReader(Reader)`**: Set data reader for custom data parsing
 - **`SetWriter(Writer)`**: Set data writer for custom data serialization
 
-**Data Transmission**
+##### Data Transmission
 - **`WritePkg(pkg any, timeout time.Duration)`**: Send data packet, returns total bytes and successfully sent bytes
 - **`WriteBytes([]byte)`**: Send byte data
 - **`WriteBytesArray(...[]byte)`**: Send multiple byte arrays
 
-**Attribute Management**
+##### Attribute Management
 - **`GetAttribute(key any)`**: Get session attribute
 - **`SetAttribute(key any, value any)`**: Set session attribute
 - **`RemoveAttribute(key any)`**: Remove session attribute
 
-**Statistics**
+##### Statistics
 - **`Stat()`**: Get session statistics (connection status, read/write bytes, packet count, etc.)
 
 #### Active Time Update Mechanism

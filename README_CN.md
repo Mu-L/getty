@@ -249,6 +249,8 @@ type Session interface {
     SetPkgHandler(ReadWriter)
     SetReader(Reader)
     SetWriter(Writer)
+    GetActive() time.Time
+    UpdateActive()
     SetCronPeriod(int)
     SetWaitTime(time.Duration)
     SetReadTimeout(time.Duration)
@@ -267,13 +269,13 @@ type Session interface {
 
 #### 主要方法说明
 
-#### 连接管理
+##### 连接管理
 - **`Conn()`**: 获取底层网络连接对象
 - **`IsClosed()`**: 检查会话是否已关闭
 - **`Close()`**: 关闭会话连接
 - **`Reset()`**: 重置会话状态
 
-#### 配置设置
+##### 配置设置
 - **`SetName(string)`**: 设置会话名称
 - **`SetMaxMsgLen(int)`**: 设置最大消息长度
 - **`SetCronPeriod(int)`**: 设置心跳检测周期（毫秒）
@@ -281,23 +283,23 @@ type Session interface {
 - **`SetReadTimeout(time.Duration)`**: 设置读取超时时间
 - **`SetWriteTimeout(time.Duration)`**: 设置写入超时时间
 
-#### 处理器设置
+##### 处理器设置
 - **`SetEventListener(EventListener)`**: 设置事件监听器，处理连接生命周期事件
 - **`SetPkgHandler(ReadWriter)`**: 设置数据包处理器，负责解析和序列化网络数据
 - **`SetReader(Reader)`**: 设置数据读取器，用于自定义数据解析
 - **`SetWriter(Writer)`**: 设置数据写入器，用于自定义数据序列化
 
-#### 数据发送
+##### 数据发送
 - **`WritePkg(pkg any, timeout time.Duration)`**: 发送数据包，返回总字节数和成功发送字节数
 - **`WriteBytes([]byte)`**: 发送字节数据
 - **`WriteBytesArray(...[]byte)`**: 发送多个字节数组
 
-#### 属性管理
+##### 属性管理
 - **`GetAttribute(key any)`**: 获取会话属性
 - **`SetAttribute(key any, value any)`**: 设置会话属性
 - **`RemoveAttribute(key any)`**: 删除会话属性
 
-#### 统计信息
+##### 统计信息
 - **`Stat()`**: 获取会话统计信息（连接状态、读写字节数、包数量等）
 
 #### 活跃时间更新机制
