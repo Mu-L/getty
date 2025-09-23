@@ -189,7 +189,7 @@ func newSession(session transport.Session) error {
     session.SetMaxMsgLen(4096)
     session.SetReadTimeout(time.Second * 10)
     session.SetWriteTimeout(time.Second * 10)
-    session.SetCronPeriod(5) // 5秒心跳检测
+    session.SetCronPeriod(5000) // 5秒心跳检测
     session.SetWaitTime(time.Second * 3)
     
     // 设置处理器
@@ -245,6 +245,8 @@ type Session interface {
     SetWriter(Writer)
     SetCronPeriod(int)
     SetWaitTime(time.Duration)
+    SetReadTimeout(time.Duration)
+    SetWriteTimeout(time.Duration)
     GetAttribute(any) any
     SetAttribute(any, any)
     RemoveAttribute(any)
@@ -270,6 +272,8 @@ type Session interface {
 - **`SetMaxMsgLen(int)`**: 设置最大消息长度
 - **`SetCronPeriod(int)`**: 设置心跳检测周期（毫秒）
 - **`SetWaitTime(time.Duration)`**: 设置等待超时时间
+- **`SetReadTimeout(time.Duration)`**: 设置读取超时时间
+- **`SetWriteTimeout(time.Duration)`**: 设置写入超时时间
 
 **处理器设置**
 - **`SetEventListener(EventListener)`**: 设置事件监听器，处理连接生命周期事件
@@ -313,15 +317,15 @@ func (w *gettyWSConn) handlePong(string) error {
     return nil
 }
 
-// 注意：TCP/UDP 的 Send() 方法不会自动调用 UpdateActive()
-// 只有数据接收和 WebSocket ping/pong 会更新活跃时间
+// 注意：TCP/UDP send 不会自动调用 UpdateActive()
+// 只有"数据接收"和 WebSocket ping/pong 会更新活跃时间
 ```
 
 **服务端心跳检测**
 ```go
 // 服务端定期为每个会话自动调用 OnCron
 func (h *ServerMessageHandler) OnCron(session transport.Session) {
-    // 获取最后活跃时间（在数据接收/发送时自动更新）
+    // 获取最后活跃时间（在数据接收或 WS ping/pong 时自动更新）
     activeTime := session.GetActive()
     idleTime := time.Since(activeTime)
     
@@ -340,15 +344,15 @@ func (h *ServerMessageHandler) OnCron(session transport.Session) {
 ```go
 // 示例时间线，显示 GetActive() 值何时变化：
 // 00:00:00 - 连接建立，GetActive() = 2024-01-01 10:00:00
-// 00:00:05 - 客户端发送数据，GetActive() = 2024-01-01 10:00:05  
-// 00:00:10 - 服务端发送响应，GetActive() = 2024-01-01 10:00:10
+// 00:00:05 - 服务端接收客户端数据，GetActive() = 2024-01-01 10:00:05  
+// 00:00:10 - 服务端接收客户端数据，GetActive() = 2024-01-01 10:00:10
 // 00:00:15 - OnCron 被调用，检查空闲时间：5 秒
 // 00:00:20 - OnCron 被调用，检查空闲时间：10 秒
 // 00:00:30 - OnCron 被调用，检测到超时，关闭连接
 ```
 
 **关键要点：**
-- **自动更新**：活跃时间在数据接收/发送时自动更新
+- **自动更新**：活跃时间仅在数据接收或 WebSocket ping/pong 时更新
 - **服务端检测**：服务端定期调用 OnCron 检查客户端活动
 - **无需客户端请求**：心跳检测是服务端发起的，不需要客户端请求
 - **实时监控**：GetActive() 反映真实的网络活动

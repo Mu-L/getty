@@ -189,7 +189,7 @@ func newSession(session transport.Session) error {
     session.SetMaxMsgLen(4096)
     session.SetReadTimeout(time.Second * 10)
     session.SetWriteTimeout(time.Second * 10)
-    session.SetCronPeriod(5) // 5 second heartbeat detection
+    session.SetCronPeriod(5000) // 5 second heartbeat detection
     session.SetWaitTime(time.Second * 3)
     
     // Set handlers
@@ -245,6 +245,8 @@ type Session interface {
     SetWriter(Writer)
     SetCronPeriod(int)
     SetWaitTime(time.Duration)
+    SetReadTimeout(time.Duration)
+    SetWriteTimeout(time.Duration)
     GetAttribute(any) any
     SetAttribute(any, any)
     RemoveAttribute(any)
@@ -270,6 +272,8 @@ type Session interface {
 - **`SetMaxMsgLen(int)`**: Set maximum message length
 - **`SetCronPeriod(int)`**: Set heartbeat detection period (milliseconds)
 - **`SetWaitTime(time.Duration)`**: Set wait timeout
+- **`SetReadTimeout(time.Duration)`**: Set read timeout
+- **`SetWriteTimeout(time.Duration)`**: Set write timeout
 
 **Handler Settings**
 - **`SetEventListener(EventListener)`**: Set event listener for handling connection lifecycle events
@@ -313,15 +317,15 @@ func (w *gettyWSConn) handlePong(string) error {
     return nil
 }
 
-// Note: TCP/UDP Send() methods do NOT automatically call UpdateActive()
-// Only data reception and WebSocket ping/pong update active time
+// Note: TCP/UDP send does NOT automatically call UpdateActive()
+// Only "data reception" and WebSocket ping/pong update active time
 ```
 
 **Server-Side Heartbeat Detection**
 ```go
 // Server automatically calls OnCron periodically for each session
 func (h *ServerMessageHandler) OnCron(session transport.Session) {
-    // Get last active time (automatically updated on data receive/send)
+    // Get last active time (automatically updated on data reception or WS ping/pong)
     activeTime := session.GetActive()
     idleTime := time.Since(activeTime)
     
@@ -340,15 +344,15 @@ func (h *ServerMessageHandler) OnCron(session transport.Session) {
 ```go
 // Example timeline showing when GetActive() values change:
 // 00:00:00 - Connection established, GetActive() = 2024-01-01 10:00:00
-// 00:00:05 - Client sends data, GetActive() = 2024-01-01 10:00:05  
-// 00:00:10 - Server sends response, GetActive() = 2024-01-01 10:00:10
+// 00:00:05 - Server receives client data, GetActive() = 2024-01-01 10:00:05  
+// 00:00:10 - Server receives client data, GetActive() = 2024-01-01 10:00:10
 // 00:00:15 - OnCron called, checks idle time: 5 seconds
 // 00:00:20 - OnCron called, checks idle time: 10 seconds
 // 00:00:30 - OnCron called, detects timeout, closes connection
 ```
 
 **Key Points:**
-- **Automatic Updates**: Active time is updated automatically on data receive/send
+- **Automatic Updates**: Active time updates only on data reception or WebSocket ping/pong
 - **Server-Side Detection**: Server calls OnCron periodically to check client activity
 - **No Client Request Needed**: Heartbeat detection is server-initiated, not client-requested
 - **Real-Time Monitoring**: GetActive() reflects actual network activity
