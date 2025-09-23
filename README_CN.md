@@ -32,7 +32,7 @@ Getty 是一个使用 Golang 开发的异步网络 I/O 库。它适用于 TCP、
 
 Getty 框架采用分层架构设计，从上到下分为应用层、Getty 核心层和网络层：
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                    应用层 (Application Layer)                │
 ├─────────────────────────────────────────────────────────────┤
@@ -62,9 +62,9 @@ Getty 框架采用分层架构设计，从上到下分为应用层、Getty 核�
 
 ## 数据流处理
 
-#### 完整数据流图
+### 完整数据流图
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                            接收数据流                                        │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -77,12 +77,12 @@ Getty 框架采用分层架构设计，从上到下分为应用层、Getty 核�
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**处理顺序：**
+### 处理顺序
 1. **PkgHandler 优先**：处理协议层解析/序列化
 2. **EventListener 其次**：处理业务逻辑和事件
 3. **两个独立 goroutine**：一个负责读取，一个负责处理
 
-**关键组件：**
+### 关键组件
 - **PkgHandler**：实现 `ReadWriter` 接口，负责数据解析/序列化
 - **EventListener**：实现 `EventListener` 接口，负责业务逻辑
 - **OnMessage()**：`EventListener` 接口的方法，用于处理解析后的数据包
@@ -108,7 +108,7 @@ import (
 type EchoPackageHandler struct{}
 
 // 解包：将网络字节流解析为应用层数据包
-func (h *EchoPackageHandler) Read(session transport.Session, data []byte) (interface{}, int, error) {
+func (h *EchoPackageHandler) Read(session getty.Session, data []byte) (interface{}, int, error) {
     // 伪代码：实现长度前缀协议
     // 1. 检查是否有足够的数据读取长度头（4字节）
     if len(data) < 4 {
@@ -128,7 +128,7 @@ func (h *EchoPackageHandler) Read(session transport.Session, data []byte) (inter
 }
 
 // 封包：将应用层数据包序列化为网络字节流
-func (h *EchoPackageHandler) Write(session transport.Session, pkg interface{}) ([]byte, error) {
+func (h *EchoPackageHandler) Write(session getty.Session, pkg interface{}) ([]byte, error) {
     // 伪代码：实现长度前缀协议
     // 1. 将应用数据转换为字节
     data := []byte(fmt.Sprintf("%v", pkg))
@@ -148,23 +148,23 @@ func (h *EchoPackageHandler) Write(session transport.Session, pkg interface{}) (
 type EchoMessageHandler struct{}
 
 // 连接建立时调用
-func (h *EchoMessageHandler) OnOpen(session transport.Session) error {
+func (h *EchoMessageHandler) OnOpen(session getty.Session) error {
     log.Printf("新连接: %s", session.RemoteAddr())
     return nil
 }
 
 // 连接关闭时调用
-func (h *EchoMessageHandler) OnClose(session transport.Session) {
+func (h *EchoMessageHandler) OnClose(session getty.Session) {
     log.Printf("连接关闭: %s", session.RemoteAddr())
 }
 
 // 发生错误时调用
-func (h *EchoMessageHandler) OnError(session transport.Session, err error) {
+func (h *EchoMessageHandler) OnError(session getty.Session, err error) {
     log.Printf("连接错误: %s, 错误: %v", session.RemoteAddr(), err)
 }
 
 // 心跳检测 - 定期调用
-func (h *EchoMessageHandler) OnCron(session transport.Session) {
+func (h *EchoMessageHandler) OnCron(session getty.Session) {
     activeTime := session.GetActive()
     if time.Since(activeTime) > 30*time.Second {
         log.Printf("连接超时，关闭: %s", session.RemoteAddr())
@@ -173,8 +173,12 @@ func (h *EchoMessageHandler) OnCron(session transport.Session) {
 }
 
 // 收到消息时调用 - 核心业务逻辑
-func (h *EchoMessageHandler) OnMessage(session transport.Session, pkg interface{}) {
-    messageData := pkg.([]byte)
+func (h *EchoMessageHandler) OnMessage(session getty.Session, pkg interface{}) {
+    messageData, ok := pkg.([]byte)
+    if !ok {
+        log.Printf("invalid packet type: %T", pkg)
+        return
+    }
     log.Printf("收到消息: %s", string(messageData))
     
     // 业务逻辑：回显消息
@@ -183,7 +187,7 @@ func (h *EchoMessageHandler) OnMessage(session transport.Session, pkg interface{
 }
 
 // 新连接回调 - 配置会话
-func newSession(session transport.Session) error {
+func newSession(session getty.Session) error {
     // 基础配置
     session.SetName("tcp-echo-session")
     session.SetMaxMsgLen(4096)
@@ -210,9 +214,9 @@ func main() {
     defer taskPool.Close()
 
     // 创建 TCP 服务器
-    server := transport.NewTCPServer(
-        transport.WithLocalAddress(":8080"),        // 监听地址
-        transport.WithServerTaskPool(taskPool),    // 任务池
+    server := getty.NewTCPServer(
+        getty.WithLocalAddress(":8080"),        // 监听地址
+        getty.WithServerTaskPool(taskPool),    // 任务池
     )
 
     // 启动服务器
@@ -324,7 +328,7 @@ func (w *gettyWSConn) handlePong(string) error {
 **服务端心跳检测**
 ```go
 // 服务端定期为每个会话自动调用 OnCron
-func (h *ServerMessageHandler) OnCron(session transport.Session) {
+func (h *ServerMessageHandler) OnCron(session getty.Session) {
     // 获取最后活跃时间（在数据接收或 WS ping/pong 时自动更新）
     activeTime := session.GetActive()
     idleTime := time.Since(activeTime)
@@ -366,7 +370,7 @@ Getty 提供了多种类型的服务器实现，支持 TCP、UDP、WebSocket 和
 ```go
 // 创建 TCP 服务器
 server := getty.NewTCPServer(
-    getty.WithLocalAddress(":8080"),        // 监听地址
+    getty.WithLocalAddress(":8080"),       // 监听地址
     getty.WithServerTaskPool(taskPool),    // 任务池
 )
 ```
@@ -468,7 +472,7 @@ defer taskPool.Close()
 
 // TCP 服务器配置
 server := getty.NewTCPServer(
-    getty.WithLocalAddress(":8080"),        // 监听地址
+    getty.WithLocalAddress(":8080"),       // 监听地址
     getty.WithServerTaskPool(taskPool),    // 任务池
 )
 

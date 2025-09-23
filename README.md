@@ -32,7 +32,7 @@ In summary, the data transmission interface of getty does not come with an inher
 
 Getty framework adopts a layered architecture design, from top to bottom: Application Layer, Getty Core Layer, and Network Layer:
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                 Application Layer                           │
 ├─────────────────────────────────────────────────────────────┤
@@ -62,9 +62,9 @@ Getty framework adopts a layered architecture design, from top to bottom: Applic
 
 ## Data Flow Processing
 
-#### Complete Data Flow Diagram
+### Complete Data Flow Diagram
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                            Incoming Data Flow                               │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -77,12 +77,12 @@ Getty framework adopts a layered architecture design, from top to bottom: Applic
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Processing Order:**
+### Processing Order
 1. **PkgHandler first**: Handles protocol-level parsing/serialization
 2. **EventListener second**: Handles business logic and events
 3. **Two separate goroutines**: One for reading, one for processing
 
-**Key Components:**
+### Key Components
 - **PkgHandler**: Implements `ReadWriter` interface for data parsing/serialization
 - **EventListener**: Implements `EventListener` interface for business logic
 - **OnMessage()**: Method of `EventListener` interface for processing parsed packets
@@ -108,7 +108,7 @@ import (
 type EchoPackageHandler struct{}
 
 // Deserialize: parse network byte stream into application packets
-func (h *EchoPackageHandler) Read(session transport.Session, data []byte) (interface{}, int, error) {
+func (h *EchoPackageHandler) Read(session getty.Session, data []byte) (interface{}, int, error) {
     // Pseudo code: implement length-prefixed protocol
     // 1. Check if there's enough data to read length header (4 bytes)
     if len(data) < 4 {
@@ -128,7 +128,7 @@ func (h *EchoPackageHandler) Read(session transport.Session, data []byte) (inter
 }
 
 // Serialize: convert application packets to network byte stream
-func (h *EchoPackageHandler) Write(session transport.Session, pkg interface{}) ([]byte, error) {
+func (h *EchoPackageHandler) Write(session getty.Session, pkg interface{}) ([]byte, error) {
     // Pseudo code: implement length-prefixed protocol
     // 1. Convert application data to bytes
     data := []byte(fmt.Sprintf("%v", pkg))
@@ -148,23 +148,23 @@ func (h *EchoPackageHandler) Write(session transport.Session, pkg interface{}) (
 type EchoMessageHandler struct{}
 
 // Called when connection is established
-func (h *EchoMessageHandler) OnOpen(session transport.Session) error {
+func (h *EchoMessageHandler) OnOpen(session getty.Session) error {
     log.Printf("New connection: %s", session.RemoteAddr())
     return nil
 }
 
 // Called when connection is closed
-func (h *EchoMessageHandler) OnClose(session transport.Session) {
+func (h *EchoMessageHandler) OnClose(session getty.Session) {
     log.Printf("Connection closed: %s", session.RemoteAddr())
 }
 
 // Called when error occurs
-func (h *EchoMessageHandler) OnError(session transport.Session, err error) {
+func (h *EchoMessageHandler) OnError(session getty.Session, err error) {
     log.Printf("Connection error: %s, error: %v", session.RemoteAddr(), err)
 }
 
 // Heartbeat detection - called periodically
-func (h *EchoMessageHandler) OnCron(session transport.Session) {
+func (h *EchoMessageHandler) OnCron(session getty.Session) {
     activeTime := session.GetActive()
     if time.Since(activeTime) > 30*time.Second {
         log.Printf("Connection timeout, closing: %s", session.RemoteAddr())
@@ -173,8 +173,12 @@ func (h *EchoMessageHandler) OnCron(session transport.Session) {
 }
 
 // Called when message is received - core business logic
-func (h *EchoMessageHandler) OnMessage(session transport.Session, pkg interface{}) {
-    messageData := pkg.([]byte)
+func (h *EchoMessageHandler) OnMessage(session getty.Session, pkg interface{}) {
+    messageData, ok := pkg.([]byte)
+    if !ok {
+        log.Printf("invalid packet type: %T", pkg)
+        return
+    }
     log.Printf("Received message: %s", string(messageData))
     
     // Business logic: echo message
@@ -183,7 +187,7 @@ func (h *EchoMessageHandler) OnMessage(session transport.Session, pkg interface{
 }
 
 // New connection callback - configure session
-func newSession(session transport.Session) error {
+func newSession(session getty.Session) error {
     // Basic configuration
     session.SetName("tcp-echo-session")
     session.SetMaxMsgLen(4096)
@@ -210,9 +214,9 @@ func main() {
     defer taskPool.Close()
 
     // Create TCP server
-    server := transport.NewTCPServer(
-        transport.WithLocalAddress(":8080"),        // Listen address
-        transport.WithServerTaskPool(taskPool),    // Task pool
+    server := getty.NewTCPServer(
+        getty.WithLocalAddress(":8080"),        // Listen address
+        getty.WithServerTaskPool(taskPool),    // Task pool
     )
 
     // Start server
@@ -324,7 +328,7 @@ func (w *gettyWSConn) handlePong(string) error {
 **Server-Side Heartbeat Detection**
 ```go
 // Server automatically calls OnCron periodically for each session
-func (h *ServerMessageHandler) OnCron(session transport.Session) {
+func (h *ServerMessageHandler) OnCron(session getty.Session) {
     // Get last active time (automatically updated on data reception or WS ping/pong)
     activeTime := session.GetActive()
     idleTime := time.Since(activeTime)
@@ -366,7 +370,7 @@ Getty provides multiple types of server implementations, supporting TCP, UDP, We
 ```go
 // Create TCP server
 server := getty.NewTCPServer(
-    getty.WithLocalAddress(":8080"),        // Listen address
+    getty.WithLocalAddress(":8080"),       // Listen address
     getty.WithServerTaskPool(taskPool),    // Task pool
 )
 ```
@@ -468,7 +472,7 @@ defer taskPool.Close()
 
 // TCP server configuration
 server := getty.NewTCPServer(
-    getty.WithLocalAddress(":8080"),        // Listen address
+    getty.WithLocalAddress(":8080"),       // Listen address
     getty.WithServerTaskPool(taskPool),    // Task pool
 )
 
