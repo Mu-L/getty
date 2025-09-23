@@ -100,7 +100,7 @@ import (
     "fmt"
     "log"
     "time"
-    "github.com/AlexStocks/getty/transport"
+    getty "github.com/AlexStocks/getty/transport"
     gxsync "github.com/dubbogo/gost/sync"
 )
 
@@ -183,7 +183,9 @@ func (h *EchoMessageHandler) OnMessage(session getty.Session, pkg interface{}) {
     
     // Business logic: echo message
     response := fmt.Sprintf("Echo: %s", string(messageData))
-    session.WritePkg(response, time.Second*5)
+    if _, _, err := session.WritePkg(response, 5*time.Second); err != nil {
+        log.Printf("send failed: %v", err)
+    }
 }
 
 // New connection callback - configure session
