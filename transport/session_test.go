@@ -726,3 +726,128 @@ func TestRepeatStopWaitsForCloseSequence(t *testing.T) {
 		t.Fatal("first stop() did not return")
 	}
 }
+
+// closeConnRecorder captures the waitSec handed to Connection.CloseConn.
+type closeConnRecorder struct {
+	*gettyTCPConn
+	waits chan int
+}
+
+func (c *closeConnRecorder) CloseConn(waitSec int) {
+	c.waits <- waitSec
+}
+
+// endPointCallbackConn mimics gettyUDPConn.Send, which calls back
+// session.EndPoint() and therefore re-enters s.lock (issue #112).
+type endPointCallbackConn struct {
+	*gettyTCPConn
+	ss     *session
+	locked chan bool
+}
+
+func (c *endPointCallbackConn) Send(pkg any) (int, error) {
+	// A writer's TryLock fails while any reader holds s.lock, so this reports
+	// whether session.Send kept s.lock held across the Connection call.
+	acquired := c.ss.lock.TryLock()
+	if acquired {
+		c.ss.lock.Unlock()
+	}
+	c.locked <- acquired
+	_ = c.ss.EndPoint() // the recursive RLock that deadlocked before the fix
+	body, _ := pkg.([]byte)
+	return len(body), nil
+}
+
+// Regression test for #112: session.Send used to hold s.lock across
+// Connection.Send. gettyUDPConn.Send calls back EndPoint(), which takes
+// s.lock.RLock again, and that recursive RLock deadlocks behind a queued
+// writer. The stub reports the lock state from inside the call, so no timing
+// luck is involved.
+func TestSendDoesNotHoldSessionLockAcrossConnectionSend(t *testing.T) {
+	conn := &endPointCallbackConn{
+		gettyTCPConn: newGettyTCPConn(&eofDataNetConn{}),
+		locked:       make(chan bool, 1),
+	}
+	ss := newSession(newServer(UDP_ENDPOINT), conn)
+	conn.ss = ss
+
+	if _, err := ss.Send([]byte("direct")); err != nil {
+		t.Fatalf("Send failed: %v", err)
+	}
+	if acquired := <-conn.locked; !acquired {
+		t.Fatal("session.Send held s.lock across Connection.Send: EndPoint() would recurse and deadlock behind a queued writer")
+	}
+}
+
+// Regression test for #112: gc() passed the pending duration to CloseConn
+// without converting nanoseconds to seconds, so int(wait) overflowed the
+// int32 linger field and Close blocked for minutes.
+func TestGCClosesConnWithSeconds(t *testing.T) {
+	rec := &closeConnRecorder{
+		gettyTCPConn: newGettyTCPConn(&eofDataNetConn{}),
+		waits:        make(chan int, 1),
+	}
+	ss := newSession(nil, rec)
+
+	ss.gc()
+
+	select {
+	case waitSec := <-rec.waits:
+		if want := int(pendingDuration / time.Second); waitSec != want {
+			t.Fatalf("CloseConn waitSec = %d, want %d (seconds, not nanoseconds)", waitSec, want)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("gc() did not call Connection.CloseConn")
+	}
+}
+
+// Regression test for #112: WriteTimeout used to be the promoted Connection
+// method with no nil guard, so stop() crashed once gc()/Reset() had cleared
+// s.Connection.
+func TestWriteTimeoutIsNilSafeAfterReset(t *testing.T) {
+	ss := newTCPSession(&eofDataNetConn{}, newServer(TCP_SERVER)).(*session)
+	ss.Reset()
+
+	if got := ss.WriteTimeout(); got != 0 {
+		t.Fatalf("WriteTimeout after Reset = %v, want 0", got)
+	}
+}
+
+// Regression test for #112: Conn()/Stat() read s.Connection without s.lock
+// while gc()/Reset() write it. Relies on the race detector (CI runs
+// `make test-race`).
+func TestStatAndConnAreSafeDuringGC(t *testing.T) {
+	ss := newTCPSession(&eofDataNetConn{}, newServer(TCP_SERVER)).(*session)
+
+	// Both goroutines are released by the same barrier and joined before the
+	// test returns: the reads are guaranteed to overlap the write rather than
+	// possibly finishing first, and neither goroutine outlives the test.
+	start := make(chan struct{})
+	readsDone := make(chan struct{})
+	gcDone := make(chan struct{})
+	go func() {
+		defer close(readsDone)
+		<-start
+		for i := 0; i < 1000; i++ {
+			_ = ss.Stat()
+			_ = ss.Conn()
+		}
+	}()
+	go func() {
+		defer close(gcDone)
+		<-start
+		ss.gc()
+	}()
+	close(start)
+
+	select {
+	case <-gcDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("gc() did not return")
+	}
+	select {
+	case <-readsDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stat/Conn did not return while gc() was running")
+	}
+}
