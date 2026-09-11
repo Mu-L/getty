@@ -1256,10 +1256,24 @@ func (s *session) Send(pkg any) (int, error) {
 	if s == nil {
 		return 0, nil
 	}
+	// #131: Send is a public write entry point and must join the same packetLock
+	// domain as WriteBytes/WritePkg. Without it, a direct Send can slip between
+	// the maxPacketLen-sized fragments of a concurrent WriteBytes (corrupting the
+	// peer's byte stream framing) or run inside the temporary write-timeout
+	// window that WritePkg(timeout>0) owns via packetLock.Lock.
+	// A read lock is enough: Send performs exactly one conn.Send, so it only has
+	// to be mutually exclusive with the fragmenting (write-locked) writer.
+	s.packetLock.RLock()
+	defer s.packetLock.RUnlock()
+	// Snapshot the connection under s.lock and release it before conn.Send:
+	// gettyUDPConn.Send calls back s.EndPoint(), which takes s.lock.RLock again,
+	// and a recursive RLock can deadlock behind a queued writer. This mirrors
+	// WriteBytes/WritePkg, which also only hold s.lock for the snapshot.
 	s.lock.RLock()
-	defer s.lock.RUnlock()
-	if s.Connection != nil {
-		return s.Connection.Send(pkg)
+	conn := s.Connection
+	s.lock.RUnlock()
+	if conn != nil {
+		return conn.Send(pkg)
 	}
 	return 0, nil
 }

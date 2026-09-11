@@ -22,6 +22,7 @@ import (
 	"io"
 	"math"
 	"net"
+	"reflect"
 	"strconv"
 	"sync"
 	"testing"
@@ -279,6 +280,129 @@ func (*resetBarrierNetConn) SetWriteDeadline(time.Time) error { return nil }
 
 func (c *resetBarrierNetConn) releaseRead() {
 	c.releaseOnce.Do(func() { close(c.release) })
+}
+
+// fragmentGateNetConn records the size of every Write and parks the first one
+// until released, so a test can freeze WriteBytes inside its maxPacketLen
+// fragmenting loop and observe whether another writer slips in.
+type fragmentGateNetConn struct {
+	mu           sync.Mutex
+	writes       []int
+	entered      chan int
+	releaseFirst chan struct{}
+	firstOnce    sync.Once
+	firstDone    chan struct{}
+}
+
+func newFragmentGateNetConn() *fragmentGateNetConn {
+	return &fragmentGateNetConn{
+		entered:      make(chan int, 8),
+		releaseFirst: make(chan struct{}),
+		firstDone:    make(chan struct{}),
+	}
+}
+
+func (c *fragmentGateNetConn) Write(p []byte) (int, error) {
+	c.mu.Lock()
+	c.writes = append(c.writes, len(p))
+	c.mu.Unlock()
+	c.entered <- len(p)
+	c.firstOnce.Do(func() {
+		<-c.releaseFirst
+		close(c.firstDone)
+	})
+	<-c.firstDone
+	return len(p), nil
+}
+
+func (*fragmentGateNetConn) Read([]byte) (int, error)         { return 0, io.EOF }
+func (*fragmentGateNetConn) Close() error                     { return nil }
+func (*fragmentGateNetConn) LocalAddr() net.Addr              { return &net.TCPAddr{} }
+func (*fragmentGateNetConn) RemoteAddr() net.Addr             { return &net.TCPAddr{} }
+func (*fragmentGateNetConn) SetDeadline(time.Time) error      { return nil }
+func (*fragmentGateNetConn) SetReadDeadline(time.Time) error  { return nil }
+func (*fragmentGateNetConn) SetWriteDeadline(time.Time) error { return nil }
+
+func (c *fragmentGateNetConn) writeSizes() []int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]int(nil), c.writes...)
+}
+
+// TestSendWaitsForWriteBytesFragments is the regression for issue #131: a
+// public session.Send must not interleave with the maxPacketLen-sized fragments
+// of a concurrent WriteBytes, otherwise the peer decodes a corrupted byte
+// stream. The gate freezes WriteBytes after its first fragment, so the write
+// order is observed deterministically instead of by timing luck.
+func TestSendWaitsForWriteBytesFragments(t *testing.T) {
+	netConn := newFragmentGateNetConn()
+	ss := newTCPSession(netConn, nil).(*session)
+
+	bigDone := make(chan error, 1)
+	go func() {
+		_, err := ss.WriteBytes(make([]byte, maxPacketLen+1))
+		bigDone <- err
+	}()
+
+	select {
+	case n := <-netConn.entered:
+		if n != maxPacketLen {
+			t.Fatalf("first fragment size = %d, want %d", n, maxPacketLen)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("WriteBytes did not enter the first fragment")
+	}
+
+	sendDone := make(chan error, 1)
+	go func() {
+		_, err := ss.Send([]byte("direct"))
+		sendDone <- err
+	}()
+
+	select {
+	case n := <-netConn.entered:
+		close(netConn.releaseFirst)
+		<-bigDone
+		<-sendDone
+		t.Fatalf("Send wrote %d bytes while a WriteBytes fragment was in flight", n)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(netConn.releaseFirst)
+	if err := <-bigDone; err != nil {
+		t.Fatalf("WriteBytes failed: %v", err)
+	}
+
+	select {
+	case n := <-netConn.entered:
+		if n != 1 {
+			t.Fatalf("WriteBytes trailing fragment size = %d, want 1", n)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("WriteBytes did not write its trailing fragment")
+	}
+
+	select {
+	case err := <-sendDone:
+		if err != nil {
+			t.Fatalf("Send failed: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Send did not complete after WriteBytes released packetLock")
+	}
+
+	select {
+	case n := <-netConn.entered:
+		if n != len("direct") {
+			t.Fatalf("direct Send wrote %d bytes, want %d", n, len("direct"))
+		}
+	case <-time.After(time.Second):
+		t.Fatal("direct Send never reached the connection")
+	}
+
+	if got, want := netConn.writeSizes(), []int{maxPacketLen, 1, len("direct")}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("wire write order = %v, want %v", got, want)
+	}
 }
 
 func TestConcurrentWritePkgTimeoutRestoration(t *testing.T) {
