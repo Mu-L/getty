@@ -347,10 +347,16 @@ func (s *session) Stat() string {
 // IsClosed check whether the session has been closed.
 func (s *session) IsClosed() bool {
 	s.lock.RLock()
-	done := s.done
-	s.lock.RUnlock()
+	defer s.lock.RUnlock()
+	return s.closedLocked()
+}
+
+// closedLocked reports whether s.done has been closed. The caller must hold
+// s.lock; run() uses it to test-and-install the heartbeat timer atomically
+// against stopHeartbeat().
+func (s *session) closedLocked() bool {
 	select {
-	case <-done:
+	case <-s.done:
 		return true
 
 	default:
@@ -732,15 +738,28 @@ func (s *session) run() {
 	}
 
 	s.lock.Lock()
+	// #129: OnOpen may have closed the session (directly, or from a goroutine it
+	// handed the session to), in which case stop() already ran stopHeartbeat()
+	// while heartbeatTimer was still nil. A TimerLoop installed afterwards can
+	// never be stopped — stop()'s repeat callers do not re-run the once body —
+	// so the wheel would keep a heartbeatContext (and the whole session) alive
+	// forever. Testing s.done under the same lock stopHeartbeat() takes makes
+	// the test and the install atomic with respect to stop().
 	lifecycle := s.lifecycle
-	timer, err := defaultTimerWheel.AddTimer(
-		heartbeat,
-		gxtime.TimerLoop,
-		s.period,
-		&heartbeatContext{session: s, lifecycle: lifecycle},
+	var (
+		timer *gxtime.Timer
+		err   error
 	)
-	if err == nil {
-		s.heartbeatTimer = timer
+	if !s.closedLocked() {
+		timer, err = defaultTimerWheel.AddTimer(
+			heartbeat,
+			gxtime.TimerLoop,
+			s.period,
+			&heartbeatContext{session: s, lifecycle: lifecycle},
+		)
+		if err == nil {
+			s.heartbeatTimer = timer
+		}
 	}
 	s.lock.Unlock()
 	if err != nil {
@@ -1045,57 +1064,57 @@ func (s *session) handleWSPackage() error {
 }
 
 func (s *session) stop() {
-	select {
-	case <-s.done: // s.done is a blocked channel. if it has not been closed, the default branch will be invoked.
-		return
-
-	default:
-		s.once.Do(func() {
-			// let read/Write timeout asap
-			now := time.Now()
-			if conn := s.Conn(); conn != nil {
-				if err := conn.SetReadDeadline(now.Add(s.ReadTimeout())); err != nil {
-					log.Warnf("failed to set read deadline: %+v", err)
-				}
-				if err := conn.SetWriteDeadline(now.Add(s.WriteTimeout())); err != nil {
-					log.Warnf("failed to set write deadline: %+v", err)
-				}
+	// #129: a repeat stop() used to return as soon as s.done was closed, while
+	// the first caller was still inside the once body. handlePackage's
+	// `s.stop(); s.gc()` defer could then run gc() — which clears s.attrs —
+	// before the body read sessionClientKey/ignoreReconnectKey, silently
+	// dropping the reconnect. Always going through once.Do makes repeat callers
+	// wait for the body, so the attributes are still readable when it finishes.
+	s.once.Do(func() {
+		// let read/Write timeout asap
+		now := time.Now()
+		if conn := s.Conn(); conn != nil {
+			if err := conn.SetReadDeadline(now.Add(s.ReadTimeout())); err != nil {
+				log.Warnf("failed to set read deadline: %+v", err)
 			}
-			close(s.done)
-			lifecycle := s.stopHeartbeat()
+			if err := conn.SetWriteDeadline(now.Add(s.WriteTimeout())); err != nil {
+				log.Warnf("failed to set write deadline: %+v", err)
+			}
+		}
+		close(s.done)
+		lifecycle := s.stopHeartbeat()
 
-			s.closeCallbackMutex.RLock()
-			closeCallbacks := s.closeCallback
-			s.closeCallbackMutex.RUnlock()
+		s.closeCallbackMutex.RLock()
+		closeCallbacks := s.closeCallback
+		s.closeCallbackMutex.RUnlock()
+		if lifecycle != nil {
+			lifecycle.addClosingTask()
+		}
+
+		go func(sessionToken string, closeCallbacks callbacks, lifecycle *sessionLifecycle) {
 			if lifecycle != nil {
-				lifecycle.addClosingTask()
+				defer lifecycle.release()
 			}
-
-			go func(sessionToken string, closeCallbacks callbacks, lifecycle *sessionLifecycle) {
-				if lifecycle != nil {
-					defer lifecycle.release()
+			defer func() {
+				if r := recover(); r != nil {
+					const size = 64 << 10
+					rBuf := make([]byte, size)
+					rBuf = rBuf[:runtime.Stack(rBuf, false)]
+					err := perrors.WithStack(fmt.Errorf("[session.invokeCloseCallbacks] panic session %s: err=%v\n%s",
+						sessionToken, r, rBuf))
+					log.Error(err)
 				}
-				defer func() {
-					if r := recover(); r != nil {
-						const size = 64 << 10
-						rBuf := make([]byte, size)
-						rBuf = rBuf[:runtime.Stack(rBuf, false)]
-						err := perrors.WithStack(fmt.Errorf("[session.invokeCloseCallbacks] panic session %s: err=%v\n%s",
-							sessionToken, r, rBuf))
-						log.Error(err)
-					}
-				}()
+			}()
 
-				closeCallbacks.Invoke()
-			}(s.sessionToken(), closeCallbacks, lifecycle)
+			closeCallbacks.Invoke()
+		}(s.sessionToken(), closeCallbacks, lifecycle)
 
-			clt, cltFound := s.GetAttribute(sessionClientKey).(*client)
-			ignoreReconnect, flagFound := s.GetAttribute(ignoreReconnectKey).(bool)
-			if cltFound && flagFound && !ignoreReconnect {
-				clt.runReconnect()
-			}
-		})
-	}
+		clt, cltFound := s.GetAttribute(sessionClientKey).(*client)
+		ignoreReconnect, flagFound := s.GetAttribute(ignoreReconnectKey).(bool)
+		if cltFound && flagFound && !ignoreReconnect {
+			clt.runReconnect()
+		}
+	})
 }
 
 func (s *session) stopHeartbeat() *sessionLifecycle {
