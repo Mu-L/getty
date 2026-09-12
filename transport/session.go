@@ -291,15 +291,27 @@ func (s *session) Reset() {
 }
 
 func (s *session) Conn() net.Conn {
-	if tc, ok := s.Connection.(*gettyTCPConn); ok {
+	// #112: gc()/Reset() nil s.Connection under s.lock, so read it under s.lock
+	// too. Only the field access is guarded; the returned net.Conn is immutable
+	// after construction (closed via closeOnce), so it stays usable.
+	s.lock.RLock()
+	conn := s.Connection
+	s.lock.RUnlock()
+	return netConnOf(conn)
+}
+
+// netConnOf unwraps the net.Conn behind a Connection snapshot. The caller is
+// responsible for having read the snapshot under s.lock.
+func netConnOf(conn Connection) net.Conn {
+	if tc, ok := conn.(*gettyTCPConn); ok {
 		return tc.conn
 	}
 
-	if uc, ok := s.Connection.(*gettyUDPConn); ok {
+	if uc, ok := conn.(*gettyUDPConn); ok {
 		return uc.conn
 	}
 
-	if wc, ok := s.Connection.(*gettyWSConn); ok {
+	if wc, ok := conn.(*gettyWSConn); ok {
 		return wc.conn.UnderlyingConn()
 	}
 
@@ -313,15 +325,28 @@ func (s *session) EndPoint() EndPoint {
 }
 
 func (s *session) gettyConn() *gettyConn {
-	if tc, ok := s.Connection.(*gettyTCPConn); ok {
+	// #112: same field-snapshot rule as Conn(): gc()/Reset() write s.Connection
+	// under s.lock.
+	s.lock.RLock()
+	conn := s.Connection
+	s.lock.RUnlock()
+	return gettyConnOf(conn)
+}
+
+// gettyConnOf unwraps the *gettyConn behind a Connection snapshot. The caller
+// is responsible for having read the snapshot under s.lock; callers that
+// already hold a snapshot (WritePkg) must use this instead of gettyConn() to
+// avoid a recursive RLock.
+func gettyConnOf(conn Connection) *gettyConn {
+	if tc, ok := conn.(*gettyTCPConn); ok {
 		return &(tc.gettyConn)
 	}
 
-	if uc, ok := s.Connection.(*gettyUDPConn); ok {
+	if uc, ok := conn.(*gettyUDPConn); ok {
 		return &(uc.gettyConn)
 	}
 
-	if wc, ok := s.Connection.(*gettyWSConn); ok {
+	if wc, ok := conn.(*gettyWSConn); ok {
 		return &(wc.gettyConn)
 	}
 
@@ -544,8 +569,10 @@ func (s *session) WritePkg(pkg any, timeout time.Duration) (pkgBytesLenth int, s
 	// gc() later nils the field, because they reference the underlying obj.
 	s.lock.RLock()
 	conn := s.Connection
-	gc := s.gettyConn()
 	s.lock.RUnlock()
+	// #112: unwrap from the snapshot taken above; calling s.gettyConn() here
+	// would take s.lock again.
+	gc := gettyConnOf(conn)
 	if conn == nil || gc == nil {
 		return 0, 0, ErrSessionClosed
 	}
@@ -1156,7 +1183,10 @@ func (s *session) gc() {
 			defer lifecycle.release()
 		}
 		if conn != nil {
-			conn.CloseConn(int(wait))
+			// #112: CloseConn takes seconds, but wait is a time.Duration in
+			// nanoseconds: int(wait) overflowed the int32 linger field and made
+			// Close() block for minutes instead of the pending duration.
+			conn.CloseConn(int(wait / time.Second))
 		}
 	}(conn, wait, lifecycle)
 }
@@ -1256,10 +1286,24 @@ func (s *session) Send(pkg any) (int, error) {
 	if s == nil {
 		return 0, nil
 	}
+	// #131: Send is a public write entry point and must join the same packetLock
+	// domain as WriteBytes/WritePkg. Without it, a direct Send can slip between
+	// the maxPacketLen-sized fragments of a concurrent WriteBytes (corrupting the
+	// peer's byte stream framing) or run inside the temporary write-timeout
+	// window that WritePkg(timeout>0) owns via packetLock.Lock.
+	// A read lock is enough: Send performs exactly one conn.Send, so it only has
+	// to be mutually exclusive with the fragmenting (write-locked) writer.
+	s.packetLock.RLock()
+	defer s.packetLock.RUnlock()
+	// Snapshot the connection under s.lock and release it before conn.Send:
+	// gettyUDPConn.Send calls back s.EndPoint(), which takes s.lock.RLock again,
+	// and a recursive RLock can deadlock behind a queued writer. This mirrors
+	// WriteBytes/WritePkg, which also only hold s.lock for the snapshot.
 	s.lock.RLock()
-	defer s.lock.RUnlock()
-	if s.Connection != nil {
-		return s.Connection.Send(pkg)
+	conn := s.Connection
+	s.lock.RUnlock()
+	if conn != nil {
+		return conn.Send(pkg)
 	}
 	return 0, nil
 }
@@ -1272,6 +1316,21 @@ func (s *session) ReadTimeout() time.Duration {
 	defer s.lock.RUnlock()
 	if s.Connection != nil {
 		return s.Connection.ReadTimeout()
+	}
+	return time.Duration(0)
+}
+
+// WriteTimeout mirrors ReadTimeout. Without it the promoted Connection method
+// was called directly, so stop() panicked once gc()/Reset() had nil-ed
+// s.Connection (issue #112).
+func (s *session) WriteTimeout() time.Duration {
+	if s == nil {
+		return time.Duration(0)
+	}
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+	if s.Connection != nil {
+		return s.Connection.WriteTimeout()
 	}
 	return time.Duration(0)
 }
