@@ -520,3 +520,85 @@ func TestSetMethodsAfterGCDoNotPanic(t *testing.T) {
 	ss.SetCompressType(CompressZip)
 	ss.CloseConn(0)
 }
+
+// closeOnOpenListener closes the session from OnOpen and still reports success,
+// the pattern that used to leave run() installing a heartbeat timer on an
+// already closed session (#129).
+type closeOnOpenListener struct{}
+
+func (*closeOnOpenListener) OnOpen(ss Session) error { ss.Close(); return nil }
+func (*closeOnOpenListener) OnClose(Session)         {}
+func (*closeOnOpenListener) OnError(Session, error)  {}
+func (*closeOnOpenListener) OnCron(Session)          {}
+func (*closeOnOpenListener) OnMessage(Session, any)  {}
+
+// Regression test for #129: OnOpen closed the session, so stop() ran
+// stopHeartbeat() while heartbeatTimer was nil. run() then installed a
+// TimerLoop that no later stop() could remove, pinning the session in the
+// global timer wheel forever.
+func TestRunDoesNotInstallHeartbeatAfterClose(t *testing.T) {
+	ss := newTCPSession(&eofDataNetConn{}, newServer(TCP_SERVER)).(*session)
+	ss.SetReader(wholeFrameReader{})
+	ss.SetWriter(timeoutTestWriter{})
+	ss.SetEventListener(&closeOnOpenListener{})
+
+	ss.run()
+	ss.grWG.Wait()
+
+	ss.lock.RLock()
+	timer := ss.heartbeatTimer
+	ss.lock.RUnlock()
+	if timer != nil {
+		t.Fatal("run() installed a heartbeat timer on an already closed session; nothing can stop it")
+	}
+}
+
+// Regression test for #129: a repeat stop() used to return as soon as s.done
+// was closed, so handlePackage's `s.stop(); s.gc()` defer could clear s.attrs
+// while the first stop() was still inside its once body, dropping the
+// reconnect. The parked body below is where that lookup happens.
+func TestRepeatStopWaitsForCloseSequence(t *testing.T) {
+	ss := newTCPSession(&eofDataNetConn{}, newServer(TCP_SERVER)).(*session)
+
+	ss.closeCallbackMutex.Lock()
+
+	firstDone := make(chan struct{})
+	go func() {
+		ss.stop()
+		close(firstDone)
+	}()
+
+	select {
+	case <-ss.done:
+	case <-time.After(time.Second):
+		ss.closeCallbackMutex.Unlock()
+		t.Fatal("first stop() did not close the session")
+	}
+
+	secondDone := make(chan struct{})
+	go func() {
+		ss.stop()
+		close(secondDone)
+	}()
+
+	select {
+	case <-secondDone:
+		ss.closeCallbackMutex.Unlock()
+		<-firstDone
+		t.Fatal("repeat stop() returned while the close sequence was still running")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	ss.closeCallbackMutex.Unlock()
+
+	select {
+	case <-secondDone:
+	case <-time.After(time.Second):
+		t.Fatal("repeat stop() did not return after the close sequence completed")
+	}
+	select {
+	case <-firstDone:
+	case <-time.After(time.Second):
+		t.Fatal("first stop() did not return")
+	}
+}
